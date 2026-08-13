@@ -1,0 +1,10 @@
+{% set ntp = networks.ntp | default([]) if networks is defined else [] %}
+{% if ntp | length > 0 %}
+{% for n in ntp %}
+{% set ip   = n.ip_address | default('') | string | trim %}
+{% set port = (n.port | default(123)) | int %}
+{% if ip %}
+server {{ ip }} port {{ port }} iburst prefer trust
+{% endif %}
+{% endfor %}
+{% endif %}

@@ -1,0 +1,175 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = destination.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set m         = (multiplex_value | default(1, true) | int) %}
+{% set idx       = (i | default(1, true) | int) %}
+{% set dest_name = destination.name | default('dest', true) %}
+
+# aws_s3
+type: aws_s3
+bucket: "{{ H.get('bucket','') }}"
+
+{# ---------- auth (profile + credentials file when AK/SK provided) ---------- #}
+{% set ak = S.get('auth.access_key_id') | default('', true) %}
+{% set sk = S.get('auth.secret_access_key') | default('', true) %}
+{% if (ak|string)|length > 0 and (sk|string)|length > 0 %}
+auth:
+  profile: "{{ dest_name }}"
+  credentials_file: "/etc/vector/aws_s3_credentials"
+{% set _region = S.get('auth.region') %}
+{% if _region is not none and (_region|string)|trim|length > 0 %}
+  region: "{{ H.get('auth.region','') }}"
+{% endif %}
+{% endif %}
+
+batch:
+{% if S.get('batch.max_bytes') is not none %}
+  max_bytes: {{ H.getint('batch.max_bytes', 0) }}
+{% endif %}
+  max_events: {{ H.getint('batch.max_events', 1000) }}
+  timeout_secs: {{ H.getint('batch.timeout_secs', 1) }}
+
+buffer:
+  type: {{ H.get('buffer.type', 'memory') }}
+{% set _btype = S.get('buffer.type') %}
+{% if _btype is none or _btype == 'memory' %}
+  max_events: {{ H.getint('buffer.max_events', 500) }}
+{% else %}
+  max_size: {{ H.getint('buffer.max_size', 268435488) }}
+{% endif %}
+  when_full: {{ H.get('buffer.when_full', 'block') }}
+
+compression: {{ H.get('compression', 'none') }}
+
+encoding:
+  codec: {{ H.get('encoding.codec', 'json') }}
+  avro:
+{% set _as = S.get('encoding.avro.schema') %}
+{% if _as is not none and (_as|string)|trim|length > 0 %}
+    schema: {{ _as }}
+{% endif %}
+    strip_schema_id_prefix: {{ H.getbool('encoding.avro.strip_schema_id_prefix', true) }}
+  csv:
+    capacity: {{ H.getint('encoding.csv.capacity', 8192) }}
+    delimiter: "{{ H.get('encoding.csv.delimiter', ',') }}"
+    double_quote: {{ H.getbool('encoding.csv.double_quote', true) }}
+    escape: "{{ H.get('encoding.csv.escape', '\"') }}"
+{% set csv_fields = S.get('encoding.csv.fields') %}
+{% if (csv_fields is string and csv_fields|trim|length > 0) or (csv_fields is sequence and not (csv_fields is string) and csv_fields|length > 0) %}
+    fields:
+{{ H.render_list(csv_fields, '      ') }}
+{% endif %}
+    quote: "{{ H.get('encoding.csv.quote', '\"') }}"
+    quote_style: {{ H.get('encoding.csv.quote_style', 'necessary') }}
+{% set csv_except = S.get('encoding.csv.except_fields') %}
+{% if (csv_except is string and csv_except|trim|length > 0) or (csv_except is sequence and not (csv_except is string) and csv_except|length > 0) %}
+    except_fields:
+{{ H.render_list(csv_except, '      ') }}
+{% endif %}
+  json:
+    pretty: {{ H.getbool('encoding.json.pretty', false) }}
+  metric_tag_values: {{ H.get('encoding.metric_tag_values', 'single') | lower }}
+{% set only_fields = S.get('encoding.only_fields') %}
+{% if (only_fields is string and only_fields|trim|length > 0) or (only_fields is sequence and not (only_fields is string) and only_fields|length > 0) %}
+  only_fields:
+{{ H.render_list(only_fields, '  ') }}
+{% endif %}
+{% if S.get('encoding.protobuf.desc_file') is not none or S.get('encoding.protobuf.message_type') is not none %}
+  protobuf:
+{% set _pdesc = S.get('encoding.protobuf.desc_file') %}
+{% if _pdesc is not none and (_pdesc|string)|trim|length > 0 %}
+    desc_file: {{ _pdesc }}
+{% endif %}
+{% set _ptype = S.get('encoding.protobuf.message_type') %}
+{% if _ptype is not none and (_ptype|string)|trim|length > 0 %}
+    message_type: {{ _ptype }}
+{% endif %}
+{% endif %}
+{% set _tsfmt = S.get('encoding.timestamp_format') %}
+{% if _tsfmt is not none and (_tsfmt|string)|trim|length > 0 %}
+  timestamp_format: {{ _tsfmt }}
+{% endif %}
+
+{% set _endpoint = S.get('endpoint') %}
+{% if _endpoint is not none and (_endpoint|string)|trim|length > 0 %}
+endpoint: "{{ H.get('endpoint','') }}"
+{% endif %}
+
+{% if S.get('filename_append_uuid') is not none %}
+filename_append_uuid: {{ H.getbool('filename_append_uuid', false) }}
+{% endif %}
+
+{% set _ext = S.get('filename_extension') %}
+{% if _ext is not none and (_ext|string)|length > 0 %}
+filename_extension: "{{ H.get('filename_extension','') }}"
+{% endif %}
+
+{% set _tfmt = S.get('filename_time_format') %}
+{% if _tfmt is not none and (_tfmt|string)|length > 0 %}
+filename_time_format: "{{ H.get('filename_time_format','') }}"
+{% endif %}
+
+{% for k in ['grant_full_control','grant_read','grant_read_acp','grant_write_acp'] %}
+{% set _v = S.get(k) %}
+{% if _v is not none and (_v|string)|length > 0 %}
+{{ k }}: "{{ H.get(k,'') }}"
+{% endif %}
+{% endfor %}
+
+request:
+  concurrency: adaptive
+  retry_max_duration_secs: 600 # 10 minutes
+
+healthcheck:
+  enabled: false
+
+inputs:
+{% if m == 1 %}
+{% if destination.routes is defined and destination.routes | length > 0 %}
+  - 08_router.{{ H.sanitize(dest_name) }}
+{% endif %}
+{% if destination.fallback is truthy(convert_bool=True) %}
+  - 08_router._unmatched
+{% endif %}
+{% elif idx < m %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}.r{{ idx }}
+{% else %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}._unmatched
+{% endif %}
+
+proxy:
+  enabled: {{ H.getbool('proxy.enabled', false) }}
+{% set _px_http = S.get('proxy.http') %}
+{% if _px_http is not none and (_px_http|string)|trim|length > 0 %}
+  http: "{{ H.get('proxy.http','') }}"
+{% endif %}
+{% set _px_https = S.get('proxy.https') %}
+{% if _px_https is not none and (_px_https|string)|trim|length > 0 %}
+  https: "{{ H.get('proxy.https','') }}"
+{% endif %}
+{% set np = S.get('proxy.no_proxy') %}
+{% if (np is string and np|trim|length > 0) or (np is sequence and not (np is string) and np|length > 0) %}
+  no_proxy:
+{{ H.render_list(np, '    ') }}
+{% endif %}
+
+{% set _region2 = S.get('region') %}
+{% if _region2 is not none and (_region2|string)|length > 0 %}
+region: "{{ H.get('region','') }}"
+{% endif %}
+
+{% if S.get('server_side_encryption') is not none and H.get('server_side_encryption','none') != 'none' %}
+server_side_encryption: "{{ H.get('server_side_encryption','') }}"
+{% endif %}
+
+storage_class: {{ H.get('storage_class', 'STANDARD') | upper }}
+
+{% set _tz = S.get('timezone') %}
+{% if _tz is not none and (_tz|string)|length > 0 %}
+timezone: "{{ H.get('timezone','') }}"
+{% endif %}
+
+{# ---------- TLS (reuse common block; aws_s3 is TCP so treat as tcp) ---------- #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

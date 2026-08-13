@@ -1,0 +1,7 @@
+# o365audit socket
+type: socket
+mode: unix_stream
+path: "/run/o365audit/{{ source.name }}.sock"
+socket_file_mode: 770
+decoding:
+  codec: json

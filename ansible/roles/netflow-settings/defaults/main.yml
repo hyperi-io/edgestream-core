@@ -1,0 +1,11 @@
+# roles/netflow-settings/defaults/main.yml
+
+netflow_settings_profiles: true
+netflow_settings_disable_profiles: true
+netflow_settings_disable_reload: true
+netflow_settings_expand_template: true
+netflow_settings_enable_profiles: true
+netflow_settings_enable_reload: true
+
+netflow_settings_config: true
+netflow_settings_service: true

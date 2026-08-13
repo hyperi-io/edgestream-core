@@ -1,0 +1,412 @@
+{
+  "type": "aws_sqs",
+  "version": "1.0.0",
+  "label": "AWS SQS",
+  "settings": {
+    "base": {
+      "queue_url": {
+        "label": "Queue URL",
+        "hint": "The URL of the SQS queue to poll for messages.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      },
+      "delete_message": {
+        "label": "Delete Message",
+        "hint": "Whether to delete the message once it is processed.",
+        "type": "bool",
+        "mandatory": true,
+        "default": true,
+        "cast": "bool"
+      },
+      "decoding.codec": {
+        "label": "Decoding Codec",
+        "hint": "The codec to use for decoding events.",
+        "type": "enum",
+        "enum": [
+          "avro",
+          "bytes",
+          "gelf",
+          "influxdb",
+          "json",
+          "native",
+          "native_json",
+          "protobuf",
+          "syslog",
+          "vrl"
+        ],
+        "mandatory": true,
+        "default": "bytes",
+        "cast": "string"
+      }
+    },
+    "tls": {
+      "tls.enabled": {
+        "label": "TLS Enabled",
+        "hint": "Whether or not to require TLS for incoming or outgoing connections. When enabled and used for incoming connections, an identity certificate is also required. See tls.crt_file for more information.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "tls.alpn_protocols": {
+        "label": "ALPN protocols",
+        "hint": "Sets the list of supported ALPN protocols. Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order that they are defined.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.verify_certificate": {
+        "label": "Verify Certificate",
+        "hint": "Enables certificate verification. For components that create a server, this requires that the client connections have a valid client certificate. For components that initiate requests, this validates that the upstream has a valid certificate.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.verify_hostname": {
+        "label": "Verify Hostname",
+        "hint": "Enables hostname verification. If enabled, the hostname used to connect to the remote host must be present in the TLS certificate presented by the remote host, either as the Common Name or as an entry in the Subject Alternative Name extension. Only relevant for outgoing connections.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.access_key_id": {
+        "label": "Auth Access Key ID",
+        "hint": "The AWS access key ID.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.assume_role": {
+        "label": "Auth Assume Role",
+        "hint": "The ARN of an IAM role to assume.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.credentials_file": {
+        "label": "Auth Credentials File",
+        "hint": "Path to the credentials file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.external_id": {
+        "label": "Auth External ID",
+        "hint": "The optional unique external ID in conjunction with role to assume.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.imds.connect_timeout_seconds": {
+        "label": "Auth IMDS Connect Timeout Seconds",
+        "hint": "Connect timeout for IMDS.",
+        "type": "int",
+        "mandatory": false,
+        "default": 1,
+        "cast": "int"
+      },
+      "auth.imds.max_attempts": {
+        "label": "Auth IMDS Max Attempts",
+        "hint": "Number of IMDS retries for fetching tokens and metadata.",
+        "type": "int",
+        "mandatory": false,
+        "default": 4,
+        "cast": "int"
+      },
+      "auth.load_timeout_secs": {
+        "label": "Auth Load Timeout Secs",
+        "hint": "Timeout for successfully loading any credentials, in seconds.",
+        "type": "int",
+        "mandatory": false,
+        "default": 30,
+        "cast": "int"
+      },
+      "auth.secret_access_key": {
+        "label": "Auth Secret Access Key",
+        "hint": "The credentials profile to use.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.region": {
+        "label": "Auth Region",
+        "hint": "The AWS region.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.session_name": {
+        "label": "Auth Session Name",
+        "hint": "The optional RoleSessionName is a unique session identifier for your assumed role.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "client_concurrency": {
+        "label": "Client Concurrency",
+        "hint": "Number of concurrent tasks to create for polling the queue for messages.",
+        "type": "int",
+        "mandatory": false,
+        "cast": "int"
+      },
+      "decoding.avro.schema": {
+        "label": "Decoding Avro Schema",
+        "hint": "The Avro schema definition.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "avro"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.gelf.lossy": {
+        "label": "Decoding Gelf Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "gelf"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.influxdb.lossy": {
+        "label": "Decoding Influxdb Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "influxdb"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.json.lossy": {
+        "label": "Decoding Json Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.native_json.lossy": {
+        "label": "Decoding Native Json Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "native_json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.protobuf.desc_file": {
+        "label": "Decoding Protobuf Desc File",
+        "hint": "Path to desc file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.protobuf.message_type": {
+        "label": "Decoding Protobuf Message Type",
+        "hint": "Path to desc file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.syslog.lossy": {
+        "label": "Decoding Syslog Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "syslog"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.vrl.source": {
+        "label": "Decoding Vrl Source",
+        "hint": "The Vector Remap Language (VRL) program to execute for each event. Note that the final contents of the . target will be used as the decoding result. Compilation error or use of ‘abort’ in a program will result in a decoding error.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "vrl"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.vrl.timezone": {
+        "label": "Decoding Vrl Timezone",
+        "hint": "The name of the timezone to apply to timestamp conversions that do not contain an explicit time zone. The time zone name may be any name in the TZ database, or local to indicate system local time.",
+        "type": "string",
+        "mandatory": false,
+        "default": "local",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "vrl"
+          }
+        ],
+        "cast": "string"
+      },
+      "region": {
+        "label": "Region",
+        "hint": "The AWS region of the target service.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "endpoint": {
+        "label": "Endpoint",
+        "hint": "Custom endpoint for use with AWS-compatible services.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "poll_secs": {
+        "label": "Poll Secs",
+        "hint": "How long to wait while polling the queue for new messages, in seconds.",
+        "type": "int",
+        "mandatory": true,
+        "default": 15,
+        "cast": "int"
+      },
+      "proxy.enabled": {
+        "label": "Proxy Enabled",
+        "hint": "Enables proxying support.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "proxy.http": {
+        "label": "Proxy HTTP",
+        "hint": "Proxy endpoint to use when proxying HTTP traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.https": {
+        "label": "Proxy HTTPS",
+        "hint": "Proxy endpoint to use when proxying HTTPS traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.no_proxy": {
+        "label": "Proxy No Proxy",
+        "hint": "A list of hosts to avoid proxying.",
+        "type": "string",
+        "default": "",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "visibility_timeout_secs": {
+        "label": "Visibility Timeout Secs",
+        "hint": "The visibility timeout to use for messages, in seconds",
+        "type": "int",
+        "default": 300,
+        "mandatory": false,
+        "cast": "int"
+      }
+    }
+  }
+}

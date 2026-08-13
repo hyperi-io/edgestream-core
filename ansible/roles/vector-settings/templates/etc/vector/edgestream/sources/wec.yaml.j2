@@ -1,0 +1,15 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% if source.enabled | default(false) %}
+
+# wec
+type: socket
+mode: unix_stream
+path: "{{ H.get('unix_socket_path', '/data/vector/wec.sock') }}"
+decoding:
+  codec: json
+
+{% endif %}

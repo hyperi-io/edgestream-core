@@ -1,0 +1,45 @@
+---
+# rsyslog configuration (SYSLOG SETTINGS | 1.1)
+
+- name: "[syslog-settings.rsyslog]: Configure rsyslog configuration file and settings"
+  block:
+    - name: "[syslog-settings.rsyslog]: Create spool directory for rsyslog buffer"
+      ansible.builtin.file:
+        path: "{{ syslogSpoolDirectory | default('/data/syslog') }}"
+        state: directory
+        owner: root
+        group: adm
+        mode: '0750'
+
+    - name: "[syslog-settings.rsyslog]: Gather facts (if not already gathered)"
+      ansible.builtin.setup:
+        filter: ansible_mounts
+      when: ansible_mounts is not defined
+
+    - name: "[syslog-settings.rsyslog]: Get size of /data mount"
+      ansible.builtin.set_fact:
+        disk_size_data: >-
+          {{ (ansible_mounts | default([]))
+             | selectattr('mount', 'equalto', '/data')
+             | map(attribute='size_total')
+             | first
+             | default(0, true) }}
+
+    - name: "[syslog-settings.rsyslog]: Expand syslog template"
+      ansible.builtin.template:
+        src: ./templates/etc/rsyslog.d/99-edgestream.conf.j2
+        dest: /etc/rsyslog.d/99-edgestream.conf
+        owner: root
+        group: root
+        mode: '0644'
+        backup: no
+      register: syslog_service
+
+    - name: "[syslog-settings.rsyslog]: Restart syslog service when config changed"
+      ansible.builtin.service:
+        name: syslog
+        state: restarted
+        enabled: true
+      when:
+        - syslog_service is defined
+        - syslog_service.changed | default(false)

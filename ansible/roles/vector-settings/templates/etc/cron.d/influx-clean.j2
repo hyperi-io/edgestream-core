@@ -1,0 +1,60 @@
+{# ----------------------------- #
+  cleandb hourly cron template
+  - Uses 'webui.chart.threshold' from advanced settings
+# ----------------------------- #}
+
+{# ---------- Advanced Settings Resolver ---------- #}
+{% set adv = advanced | default([]) %}
+
+{# Safe lookup macro for advanced settings #}
+{% macro get_adv(items, key, default_val) -%}
+  {%- set match = items | selectattr('label', 'defined') | selectattr('label', 'equalto', key) | list -%}
+  {%- if match | length > 0 and match[0].value | string | trim | length > 0 -%}
+    {{ match[0].value | string | trim }}
+  {%- elif match | length > 0 and match[0].default_value | string | trim | length > 0 -%}
+    {{ match[0].default_value | string | trim }}
+  {%- else -%}
+    {{ default_val }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% set threshold = get_adv(adv, 'webui.chart.threshold', '2G') %}
+
+# Managed by Ansible – DO NOT EDIT
+SHELL=/bin/bash
+PATH=/opt/edgestream-core/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+{# ---------- Cron variables / arguments with sane defaults ---------- #}
+{% set cleandb_path = cleandb_path | default('/opt/edgestream-core/bin/influx-clean', true) %}
+{% set engine_dir   = engine_dir   | default('/data/influxdb/engine', true) %}
+{% set state_dir    = state_dir    | default('/var/lib/cleandb_state', true) %}
+
+{# buckets: accept list, CSV string, or JSON string #}
+{% if buckets is defined %}
+  {% if buckets is string %}
+    {% set _b = buckets | trim %}
+    {% if _b.startswith('[') and _b.endswith(']') %}
+      {% set buckets_list = _b | from_json %}
+    {% else %}
+      {% set buckets_list = _b.split(',') | map('trim') | list %}
+    {% endif %}
+  {% else %}
+    {% set buckets_list = buckets %}
+  {% endif %}
+{% else %}
+  {% set buckets_list = ['vector_metric','syslog_metric'] %}
+{% endif %}
+{% set buckets_arg  = buckets_list | join(',') %}
+
+{% set influx_org   = influx_org   | default('edgestream', true) %}
+{% set cron_user    = cron_user    | default('root', true) %}
+{% set log_path     = log_path     | default('/var/log/edgestream-influx-clean.log', true) %}
+{% set minute       = (minute | default('0', true) | string) %}
+
+# Runs cleandb hourly with threshold {{ threshold }}
+{{ minute }} * * * * {{ cron_user }} "{{ cleandb_path }}" \
+  --buckets "{{ buckets_arg }}" \
+  --threshold "{{ threshold }}" \
+  --engine-dir "{{ engine_dir }}" \
+  --state-dir "{{ state_dir }}" \
+  --org "{{ influx_org }}" >> "{{ log_path }}" 2>&1

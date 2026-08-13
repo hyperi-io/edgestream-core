@@ -1,0 +1,53 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# Splunk HEC
+type: splunk_hec
+address: "{{ H.get('address', '0.0.0.0:8088') }}"
+
+keepalive:
+  max_connection_age_jitter_factor: {{ H.getfloat('keepalive.max_connection_age_jitter_factor', 0.10) }}
+  max_connection_age_secs: {{ H.getint('keepalive.max_connection_age_secs', 300) }}
+
+store_hec_token: {{ H.getbool('store_hec_token', false) }}
+
+{# authentication tokens #}
+{% set _valid_tokens = S.get('valid_tokens') %}
+{% if _valid_tokens is not none and (
+      (_valid_tokens is string and _valid_tokens|trim|length > 0) or
+      (_valid_tokens is sequence and not (_valid_tokens is string) and _valid_tokens|length > 0)
+   ) %}
+valid_tokens:
+{{ H.render_list(_valid_tokens, '  ') }}
+{% else %}
+  {# DEPRECATED: prefer `valid_tokens` #}
+  {% set _token = S.get('token') %}
+  {% if _token is not none and (_token|string)|trim|length > 0 %}
+token: "{{ H.get('token', '') }}"
+  {% endif %}
+{% endif %}
+
+{# acknowledgements block (emit only if any field provided) #}
+{% set ack_any =
+    S.get('acknowledgements.enabled') is not none or
+    S.get('acknowledgements.ack_idle_cleanup') is not none or
+    S.get('acknowledgements.max_idle_time') is not none or
+    S.get('acknowledgements.max_number_of_ack_channels') is not none or
+    S.get('acknowledgements.max_pending_acks') is not none or
+    S.get('acknowledgements.max_pending_acks_per_channel') is not none
+%}
+{% if ack_any %}
+acknowledgements:
+{% if S.get('acknowledgements.enabled') is not none %}  enabled: {{ H.getbool('acknowledgements.enabled', false) }}{% endif %}
+{% if S.get('acknowledgements.ack_idle_cleanup') is not none %}  ack_idle_cleanup: {{ H.getbool('acknowledgements.ack_idle_cleanup', false) }}{% endif %}
+{% if S.get('acknowledgements.max_idle_time') is not none %}  max_idle_time: {{ H.getint('acknowledgements.max_idle_time', 300) }}{% endif %}
+{% if S.get('acknowledgements.max_number_of_ack_channels') is not none %}  max_number_of_ack_channels: {{ H.getint('acknowledgements.max_number_of_ack_channels', 1000000) }}{% endif %}
+{% if S.get('acknowledgements.max_pending_acks') is not none %}  max_pending_acks: {{ H.getint('acknowledgements.max_pending_acks', 10000000) }}{% endif %}
+{% if S.get('acknowledgements.max_pending_acks_per_channel') is not none %}  max_pending_acks_per_channel: {{ H.getint('acknowledgements.max_pending_acks_per_channel', 1000000) }}{% endif %}
+{% endif %}
+
+{# ---------- TLS (reuse common block; splunk_hec is TCP so treat as tcp) ---------- #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

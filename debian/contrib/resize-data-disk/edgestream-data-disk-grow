@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+LABEL="${DATA_FS_LABEL:-EDGESTREAM_DATA}"
+
+part="$(blkid -L "$LABEL" 2>/dev/null || true)"
+[ -b "$part" ] || exit 0
+
+disk_name="$(lsblk -no PKNAME "$part" | head -n1)"
+part_num="$(lsblk -no PARTN "$part" | head -n1)"
+
+[ -n "$disk_name" ] || exit 0
+[ -n "$part_num" ] || exit 0
+
+disk="/dev/$disk_name"
+
+if command -v growpart >/dev/null 2>&1; then
+  growpart "$disk" "$part_num" || true
+fi
+
+resize2fs "$part" || true

@@ -1,0 +1,121 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+{% set sources = sources | default([]) %}
+
+{# -------- optional overrides from vars -------- #}
+{% set SYSLOG_UNIT   = syslog_unit   | default('syslog-ng.service') %}
+{% set NETFLOW_UNIT  = netflow_unit  | default('flow-collector.service') %}
+
+{% set SYSLOG_META   = syslog_meta   | default({'key': 'syslog', 'name': 'Syslog (syslog-ng)', 'optional': False, 'disabled': False}) %}
+{% set NETFLOW_META  = netflow_meta  | default({'key': 'netflow', 'name': 'Netflow', 'optional': True, 'disabled': False}) %}
+
+{# ---- vector / pywec / scheduler overrides ---- #}
+{% set VECTOR_UNIT   = vector_unit   | default('vector.service') %}
+{% set PYWEC_UNIT    = pywec_unit    | default('pywec.service') %}
+{% set SCHED_UNIT    = scheduler_unit | default('edgestream-scheduler.service') %}
+
+{% set VECTOR_META   = vector_meta   | default({'key': 'vector', 'name': 'Vector', 'optional': False, 'disabled': False}) %}
+{% set PYWEC_META    = pywec_meta    | default({'key': 'pywec', 'name': 'PyWEC', 'optional': True, 'disabled': False}) %}
+{% set SCHED_META    = scheduler_meta | default({'key': 'scheduler', 'name': 'Scheduler', 'optional': True, 'disabled': False}) %}
+
+{# -------- collect logic -------- #}
+{% set acc = {} %}
+
+{% for src in sources %}
+  {% if src.enabled | default(false) | bool %}
+    {% set S = src.settings | default({}) %}
+    {% set stype = (src.type | default('') | lower) %}
+
+    {# --- Syslog Internal --- #}
+    {% if stype == 'syslog_ng' %}
+      {% set port = S.get('port') %}
+      {% if port %}
+        {% set tcp_enabled = (S.get('tcp') | default(false) | string | lower) in ['1', 'true', 'yes', 'on'] %}
+        {% set udp_enabled = (S.get('udp') | default(false) | string | lower) in ['1', 'true', 'yes', 'on'] %}
+        
+        {% if not acc.get(SYSLOG_UNIT) %}{% set _ = acc.update({SYSLOG_UNIT: {'ports': []}}) %}{% endif %}
+        
+        {% if tcp_enabled %}
+          {% set _ = acc[SYSLOG_UNIT]['ports'].append('0.0.0.0:' ~ port ~ '/tcp') %}
+        {% endif %}
+        {% if udp_enabled %}
+          {% set _ = acc[SYSLOG_UNIT]['ports'].append('0.0.0.0:' ~ port ~ '/udp') %}
+        {% endif %}
+      {% endif %}
+    {% endif %}
+
+    {# --- Netflow --- #}
+    {% if stype == 'netflow' %}
+      {% set host = S.get('address') or '0.0.0.0' %}
+      {% set ports_val = S.get('ports') | default('') %}
+      
+      {# Split string of ports or handle list #}
+      {% if ports_val is string %}
+        {% set ports_list = ports_val.replace(' ', '').split(',') %}
+      {% else %}
+        {% set ports_list = ports_val %}
+      {% endif %}
+
+      {% if not acc.get(NETFLOW_UNIT) %}{% set _ = acc.update({NETFLOW_UNIT: {'ports': []}}) %}{% endif %}
+
+      {% for p in ports_list %}
+        {% if p | string | trim %}
+          {% set entry = host ~ ':' ~ p | trim ~ '/udp' %}
+          {% if entry not in acc[NETFLOW_UNIT]['ports'] %}
+            {% set _ = acc[NETFLOW_UNIT]['ports'].append(entry) %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endif %}
+{% endfor %}
+
+services:
+{# --- syslog --- #}
+{% if acc.get(SYSLOG_UNIT) %}
+  - key: {{ SYSLOG_META.key }}
+    name: {{ SYSLOG_META.name }}
+    unit: {{ SYSLOG_UNIT }}
+    ports: [ {{ acc[SYSLOG_UNIT].ports | unique | join(', ') }} ]
+    optional: {{ SYSLOG_META.optional | bool }}
+    disabled: {{ SYSLOG_META.disabled | bool }}
+{% endif %}
+
+{# --- netflow --- #}
+{% if acc.get(NETFLOW_UNIT) %}
+  - key: {{ NETFLOW_META.key }}
+    name: {{ NETFLOW_META.name }}
+    unit: {{ NETFLOW_UNIT }}
+    ports: [ {{ acc[NETFLOW_UNIT].ports | unique | join(', ') }} ]
+    optional: {{ NETFLOW_META.optional | bool }}
+    disabled: {{ NETFLOW_META.disabled | bool }}
+{% endif %}
+
+{# --- vector --- #}
+{% if vector_monitor | default(true) %}
+  - key: {{ VECTOR_META.key }}
+    name: {{ VECTOR_META.name }}
+    unit: {{ VECTOR_UNIT }}
+    ports: []
+    optional: {{ VECTOR_META.optional | bool }}
+    disabled: {{ VECTOR_META.disabled | bool }}
+{% endif %}
+
+{# --- PyWEC --- #}
+{% if pywec_installed | default(false) %}
+  - key: {{ PYWEC_META.key }}
+    name: {{ PYWEC_META.name }}
+    unit: {{ PYWEC_UNIT }}
+    ports: []
+    optional: {{ PYWEC_META.optional | bool }}
+    disabled: {{ PYWEC_META.disabled | bool }}
+{% endif %}
+
+{# --- Scheduler --- #}
+{% if scheduler_installed | default(false) %}
+  - key: {{ SCHED_META.key }}
+    name: {{ SCHED_META.name }}
+    unit: {{ SCHED_UNIT }}
+    ports: []
+    optional: {{ SCHED_META.optional | bool }}
+    disabled: {{ SCHED_META.disabled | bool }}
+{% endif %}

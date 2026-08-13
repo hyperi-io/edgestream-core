@@ -1,0 +1,10 @@
+#jinja2: lstrip_blocks: "True"
+{% set nets = networks | default({}) %}
+{% set ip_mgmt = nets.ip_management | default([]) %}
+
+{% if (ip_mgmt | length) > 0 %}
+  {% set has_event = (ip_mgmt | selectattr('type','equalto','event') | list | length) > 0 %}
+  {% if has_event %}
+200 wan2
+  {% endif %}
+{% endif %}

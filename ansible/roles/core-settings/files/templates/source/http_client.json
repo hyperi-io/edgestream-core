@@ -1,0 +1,518 @@
+{
+  "type": "http_client",
+  "version": "1.0.0",
+  "label": "Http Client",
+  "settings": {
+    "base": {
+      "endpoint": {
+        "label": "Endpoint",
+        "hint": "The HTTP endpoint to collect events from.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": true,
+        "default": "http://127.0.0.1:9898/logs",
+        "cast": "string"
+      },
+      "decoding.codec": {
+        "label": "Decoding Codec",
+        "hint": "The codec to use for decoding events.",
+        "type": "enum",
+        "enum": [
+          "avro",
+          "bytes",
+          "gelf",
+          "influxdb",
+          "json",
+          "native",
+          "native_json",
+          "protobuf",
+          "syslog",
+          "vrl"
+        ],
+        "mandatory": true,
+        "default": "json",
+        "cast": "string"
+      }
+    },
+    "tls": {
+      "tls.enabled": {
+        "label": "TLS Enabled",
+        "hint": "Whether or not to require TLS for incoming or outgoing connections. When enabled and used for incoming connections, an identity certificate is also required. See tls.crt_file for more information.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "tls.alpn_protocols": {
+        "label": "ALPN protocols",
+        "hint": "Sets the list of supported ALPN protocols. Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order that they are defined.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.verify_certificate": {
+        "label": "Verify Certificate",
+        "hint": "Enables certificate verification. For components that create a server, this requires that the client connections have a valid client certificate. For components that initiate requests, this validates that the upstream has a valid certificate.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.verify_hostname": {
+        "label": "Verify Hostname",
+        "hint": "Enables hostname verification. If enabled, the hostname used to connect to the remote host must be present in the TLS certificate presented by the remote host, either as the Common Name or as an entry in the Subject Alternative Name extension. Only relevant for outgoing connections.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.strategy": {
+        "label": "Auth Strategy",
+        "hint": "The authentication strategy to use.",
+        "type": "enum",
+        "enum": [
+          "none",
+          "basic",
+          "bearer"
+        ],
+        "mandatory": false,
+        "default": "none",
+        "cast": "string"
+      },
+      "auth.token": {
+        "label": "Auth Token",
+        "hint": "The bearer authentication token.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "bearer"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.user": {
+        "label": "Auth User",
+        "hint": "The basic authentication username.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "basic"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.password": {
+        "label": "Auth Password",
+        "hint": "The basic authentication password.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "basic"
+          }
+        ],
+        "cast": "string"
+      },
+      "method": {
+        "label": "Method",
+        "hint": "Specifies the method of the HTTP request.",
+        "type": "enum",
+        "enum": [
+          "delete",
+          "get",
+          "head",
+          "patch",
+          "post",
+          "put"
+        ],
+        "mandatory": false,
+        "default": "get",
+        "cast": "string"
+      },
+      "query": {
+        "label": "Query",
+        "hint": "Custom parameters for the HTTP request query string. One or more values for the same parameter key can be provided.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "proxy.enabled": {
+        "label": "Proxy Enabled",
+        "hint": "Enables proxying support.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "proxy.http": {
+        "label": "Proxy HTTP",
+        "hint": "Proxy endpoint to use when proxying HTTP traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.https": {
+        "label": "Proxy HTTPS",
+        "hint": "Proxy endpoint to use when proxying HTTPS traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.no_proxy": {
+        "label": "Proxy No Proxy",
+        "hint": "A list of hosts to avoid proxying.",
+        "type": "string",
+        "default": "",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "decoding.avro.schema": {
+        "label": "Decoding Avro Schema",
+        "hint": "The Avro schema definition.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "avro"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.avro.strip_schema_id_prefix": {
+        "label": "Strip Avro Schema ID Prefix",
+        "hint": "For Avro datum encoded in Kafka messages, the bytes are prefixed with the schema ID.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "avro"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.gelf.lossy": {
+        "label": "Decoding Gelf Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "gelf"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.influxdb.lossy": {
+        "label": "Decoding Influxdb Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "influxdb"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.json.lossy": {
+        "label": "Decoding Json Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.native_json.lossy": {
+        "label": "Decoding Native Json Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "native_json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.protobuf.desc_file": {
+        "label": "Decoding Protobuf Desc File",
+        "hint": "Path to desc file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.protobuf.message_type": {
+        "label": "Decoding Protobuf Message Type",
+        "hint": "Path to desc file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.syslog.lossy": {
+        "label": "Decoding Syslog Lossy",
+        "hint": "Determines whether or not to replace invalid UTF-8 sequences instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "syslog"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.vrl.source": {
+        "label": "Decoding Vrl Source",
+        "hint": "The Vector Remap Language (VRL) program to execute for each event. Note that the final contents of the . target will be used as the decoding result. Compilation error or use of ‘abort’ in a program will result in a decoding error.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "vrl"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.vrl.timezone": {
+        "label": "Decoding Vrl Timezone",
+        "hint": "The name of the timezone to apply to timestamp conversions that do not contain an explicit time zone. The time zone name may be any name in the TZ database, or local to indicate system local time.",
+        "type": "string",
+        "mandatory": false,
+        "default": "local",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "vrl"
+          }
+        ],
+        "cast": "string"
+      },
+      "scrape_interval_secs": {
+        "label": "Scrape Interval Secs",
+        "hint": "The interval between scrapes. Requests are run concurrently so if a scrape takes longer than the interval a new scrape will be started. This can take extra resources, set the timeout to a value lower than the scrape interval to prevent this from happening.",
+        "type": "int",
+        "mandatory": false,
+        "default": "15",
+        "cast": "int"
+      },
+      "scrape_timeout_secs": {
+        "label": "Scrape Timeout Secs",
+        "hint": "The timeout for each scrape request.",
+        "type": "int",
+        "mandatory": false,
+        "default": "5",
+        "cast": "int"
+      },
+      "framing.method": {
+        "label": "Framing Method",
+        "hint": "The framing method.",
+        "type": "enum",
+        "enum": [
+          "none",
+          "bytes",
+          "character_delimited",
+          "length_delimited",
+          "newline_delimited",
+          "octet_counting"
+        ],
+        "mandatory": false,
+        "default": "none",
+        "cast": "string"
+      },
+      "framing.character_delimited.delimiter": {
+        "label": "Framing Character Delimited Delimiter",
+        "hint": "The character that delimits byte sequences.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "character_delimited"
+          }
+        ],
+        "cast": "string"
+      },
+      "framing.character_delimited.max_length": {
+        "label": "Framing Character Delimited Max Length",
+        "hint": "The maximum length of the byte buffer. This length does not include the trailing delimiter.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "character_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.length_delimited.length_field_is_big_endian": {
+        "label": "Framing Length Delimited Length Field is Big Endian",
+        "hint": "Length field byte order (little or big endian).",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "bool"
+      },
+      "framing.length_delimited.length_field_length": {
+        "label": "Framing Length Delimited Length Field Length",
+        "hint": "Number of bytes representing the field length.",
+        "type": "int",
+        "mandatory": false,
+        "default": 4,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.length_delimited.length_field_offset": {
+        "label": "Framing Length Delimited Length Field Offset",
+        "hint": "Number of bytes in the header before the length field.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.length_delimited.max_frame_length": {
+        "label": "Framing Length Delimited Frame Length",
+        "hint": "Maximum frame length.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.newline_delimited.max_length": {
+        "label": "Framing Newline Delimited Max Length",
+        "hint": "The maximum length of the byte buffer.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "newline_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.octet_counting.max_length": {
+        "label": "Framing Octet Counting Max Length",
+        "hint": "The maximum length of the byte buffer.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "octet_counting"
+          }
+        ],
+        "cast": "int"
+      }
+    }
+  }
+}

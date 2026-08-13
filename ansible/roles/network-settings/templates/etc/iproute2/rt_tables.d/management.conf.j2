@@ -1,0 +1,10 @@
+#jinja2: lstrip_blocks: "True"
+{% set nets = networks | default({}) %}
+{% set ip_mgmt = nets.ip_management | default([]) %}
+
+{% if (ip_mgmt | length) > 0 %}
+  {% set has_mgmt = (ip_mgmt | selectattr('type','equalto','mgmt') | list | length) > 0 %}
+  {% if has_mgmt %}
+100 wan1
+  {% endif %}
+{% endif %}

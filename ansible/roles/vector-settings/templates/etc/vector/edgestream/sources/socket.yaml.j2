@@ -1,0 +1,151 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set MODE = (S.get('mode') | default('tcp', true)) %}
+# Socket
+type: socket
+mode: {{ MODE }}
+
+{% if MODE in ['unix_datagram','unix_stream'] %}
+path: "{{ H.get('path', '/var/run/vector.sock') }}"
+{% if S.get('socket_file_mode') is not none %}
+socket_file_mode: {{ H.getint('socket_file_mode', 438) }}
+{% endif %} {# 0666 octal -> 438 dec #}
+{% else %}
+address: "{{ H.get('address', '0.0.0.0:514') }}"
+{% endif %}
+
+{# TCP-only knobs #}
+{% if MODE == 'tcp' %}
+{% set _cl = S.get('connection_limit') %}
+{% if _cl is not none and (_cl|string)|length > 0 %}
+connection_limit: {{ H.getint('connection_limit', 0) }}
+{% endif %}
+keepalive:
+  time_secs: {{ H.getint('keepalive.time_secs', 7200) }}
+{% if S.get('max_connection_duration_secs') is not none %}
+max_connection_duration_secs: {{ H.getint('max_connection_duration_secs', 0) }}
+{% endif %}
+{% if S.get('shutdown_timeout_secs') is not none %}
+shutdown_timeout_secs: {{ H.getint('shutdown_timeout_secs', 30) }}
+{% endif %}
+
+{% include 'common/blocks/permit_origin.j2' %}
+
+{% endif %}
+
+{# UDP-only knobs #}
+{% if MODE == 'udp' %}
+{% set _mg = S.get('multicast_groups') %}
+{% if _mg is not none %}
+multicast_groups:
+{{ render_list(_mg, '  ') }}
+{% endif %}
+{% if S.get('max_length') is not none %}
+max_length: {{ H.getint('max_length', 102400) }}
+{% endif %}
+{% endif %}
+
+{# TCP or UDP #}
+{% if MODE in ['tcp','udp'] and S.get('receive_buffer_bytes') is not none %}
+receive_buffer_bytes: {{ H.getint('receive_buffer_bytes', 0) }}
+{% endif %}
+
+{# optional peer metadata keys #}
+{% if S.get('host_key') is not none %}
+host_key: '{{ H.get('host_key', '') }}'
+{% endif %}
+{% if MODE in ['tcp','udp'] and S.get('port_key') is not none %}
+port_key: '{{ H.get('port_key', 'port') }}'
+{% endif %}
+
+{# framing (optional object; emit only if method provided) #}
+{% set _fm = S.get('framing.method') %}
+{% if _fm is not none %}
+framing:
+  method: {{ H.get('framing.method', 'bytes') }}
+{% if S.get('framing.method','') == 'character_delimited' %}
+  character_delimited:
+    delimiter: "{{ H.get('framing.character_delimited.delimiter', '|') }}"
+{% set _cdml = S.get('framing.character_delimited.max_length') %}
+{% if _cdml is not none %}
+      max_length: {{ H.getint('framing.character_delimited.max_length', 0) }}
+{% endif %}
+{% elif S.get('framing.method','') == 'chunked_gelf' %}
+  chunked_gelf:
+    decompression: {{ H.get('framing.chunked_gelf.decompression', 'Auto') }}
+{% set _cgml = S.get('framing.chunked_gelf.max_length') %}
+{% if _cgml is not none %}
+    max_length: {{ H.getint('framing.chunked_gelf.max_length', 0) }}
+{% endif %}
+{% set _cgpml = S.get('framing.chunked_gelf.pending_messages_limit') %}
+{% if _cgpml is not none %}
+    pending_messages_limit: {{ H.getint('framing.chunked_gelf.pending_messages_limit', 0) }}
+{% endif %}
+    timeout_secs: {{ getfloat('framing.chunked_gelf.timeout_secs', 5) }}
+{% elif S.get('framing.method','') == 'length_delimited' %}
+  length_delimited:
+    length_field_is_big_endian: {{ H.getbool('framing.length_delimited.length_field_is_big_endian', true) }}
+    length_field_length: {{ H.getint('framing.length_delimited.length_field_length', 4) }}
+{% set _ldoff = S.get('framing.length_delimited.length_field_offset') %}
+{% if _ldoff is not none %}
+    length_field_offset: {{ H.getint('framing.length_delimited.length_field_offset', 0) }}
+{% endif %}
+    max_frame_length: {{ H.getint('framing.length_delimited.max_frame_length', 8388608) }}
+{% elif S.get('framing.method','') == 'newline_delimited' %}
+  newline_delimited:
+{% set _ndml = S.get('framing.newline_delimited.max_length') %}
+{% if _ndml is not none %}
+    max_length: {{ H.getint('framing.newline_delimited.max_length', 0) }}
+{% endif %}
+{% elif S.get('framing.method','') == 'octet_counting' %}
+  octet_counting:
+{% set _ocml = S.get('framing.octet_counting.max_length') %}
+{% if _ocml is not none %}
+    max_length: {{ H.getint('framing.octet_counting.max_length', 0) }}
+{% endif %}
+{% elif S.get('framing.method','') == 'varint_length_delimited' %}
+  max_frame_length: {{ H.getint('framing.max_frame_length', 8388608) }}
+{% endif %}
+{% endif %}
+
+decoding:
+  codec: {{ H.get('decoding.codec', 'bytes') }}
+  avro:
+{% set _as = S.get('decoding.avro.schema') %}
+{% if _as is not none and (_as|string)|trim|length > 0 %}
+    schema: {{ _as }}
+{% endif %}
+    strip_schema_id_prefix: {{ H.getbool('decoding.avro.strip_schema_id_prefix', true) }}
+  gelf:
+    lossy: {{ H.getbool('decoding.gelf.lossy', true) }}
+  influxdb:
+    lossy: {{ H.getbool('decoding.influxdb.lossy', true) }}
+  json:
+    lossy: {{ H.getbool('decoding.json.lossy', true) }}
+  native_json:
+    lossy: {{ H.getbool('decoding.native_json.lossy', true) }}
+{% set _pb_desc = S.get('decoding.protobuf.desc_file') %}
+{% set _pb_type = S.get('decoding.protobuf.message_type') %}
+{% set _pb_has = (_pb_desc is not none and (_pb_desc|string)|trim|length > 0) or (_pb_type is not none and (_pb_type|string)|trim|length > 0) %}
+{% if _pb_has %}
+  protobuf:
+{% if _pb_desc is not none and (_pb_desc|string)|trim|length > 0 %}
+    desc_file: {{ _pb_desc }}
+{% endif %}
+{% if _pb_type is not none and (_pb_type|string)|trim|length > 0 %}
+    message_type: {{ _pb_type }}
+{% endif %}
+{% endif %}
+  syslog:
+    lossy: {{ H.getbool('decoding.syslog.lossy', true) }}
+  vrl:
+{% set _vrl_src = S.get('decoding.vrl.source') %}
+{% if _vrl_src is not none and (_vrl_src|string)|trim|length > 0 %}
+    source: |-
+{{ (_vrl_src | string) | indent(6) }}
+{% endif %}
+    timezone: {{ H.get('decoding.vrl.timezone', 'local') }}
+
+{% include 'common/blocks/tls.j2' %}

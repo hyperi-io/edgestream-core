@@ -1,0 +1,5 @@
+type: exclusive_route
+inputs: [00_internal_source_vector_metric]
+routes:
+  - name: vector
+    condition: match_any(string!(.name), [r'component_sent_events_total', r'buffer_byte_size']) && (starts_with(string!(.tags.component_id) , "01_") || starts_with(string!(.tags.component_id) , "09_"))

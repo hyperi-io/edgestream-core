@@ -1,0 +1,6 @@
+---
+# Set system timezone
+
+- name: "[core-settings.timezone]: Set timezone"
+  community.general.timezone:
+    name: "{{ system.timezone | default('UTC') }}"

@@ -1,0 +1,250 @@
+{
+  "type": "file",
+  "version": "1.0.0",
+  "label": "File",
+  "settings": {
+    "base": {
+      "include": {
+        "label": "Array of file patterns to include",
+        "hint": "CSV list of patterns to include. Globbing is supported.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      },
+      "read_from": {
+        "label": "Read From",
+        "hint": "File position to use when reading a new file.",
+        "type": "enum",
+        "enum": [
+          "beginning",
+          "end"
+        ],
+        "mandatory": true,
+        "default": "beginning",
+        "cast": "string"
+      }
+    },
+    "tls": {},
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "data_dir": {
+        "label": "Data Dir",
+        "hint": "The directory used to persist file checkpoint positions.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "encoding.charset": {
+        "label": "Encoding Charset",
+        "hint": "Encoding of the source messages.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "exclude": {
+        "label": "Array of file patterns to exclude",
+        "hint": "CSV list of patterns to exclude. Globbing is supported.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "file_key": {
+        "label": "File Key",
+        "hint": "Overrides the name of the log field used to add the file path to each event.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "fingerprint.strategy": {
+        "label": "Fingerprint Strategy",
+        "hint": "The strategy used to uniquely identify files.",
+        "type": "enum",
+        "enum": [
+          "checksum",
+          "device_and_inode"
+        ],
+        "mandatory": true,
+        "default": "checksum",
+        "cast": "string"
+      },
+      "fingerprint.ignored_header_bytes": {
+        "label": "Fingerprint Ignored Header Bytes",
+        "hint": "The number of bytes to skip ahead (or ignore) when reading the data used for generating the checksum. If the file is compressed, the number of bytes refer to the header in the uncompressed content. Only gzip is supported at this time.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "fingerprint.strategy",
+            "value": "checksum"
+          }
+        ],
+        "default": 0,
+        "cast": "int"
+      },
+      "fingerprint.lines": {
+        "label": "Fingerprint Lines",
+        "hint": "The number of lines to read for generating the checksum.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "fingerprint.strategy",
+            "value": "checksum"
+          }
+        ],
+        "default": 1,
+        "cast": "int"
+      },
+      "glob_minimum_cooldown_ms": {
+        "label": "Glob Minimum Cooldown MS",
+        "hint": "The delay between file discovery calls.",
+        "type": "int",
+        "mandatory": false,
+        "default": 1000,
+        "cast": "int"
+      },
+      "host_key": {
+        "label": "Host Key",
+        "hint": "Overrides the name of the log field used to add the current hostname to each event.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "ignore_checkpoints": {
+        "label": "Ignore Checkpoints",
+        "hint": "Whether or not to ignore existing checkpoints when determining where to start reading a file.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "ignore_not_found": {
+        "label": "Ignore Not Found",
+        "hint": "Ignore missing files when fingerprinting.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "ignore_older_secs": {
+        "label": "Ignore Older Secs",
+        "hint": "Ignore files with a data modification date older than the specified number of seconds.",
+        "type": "int",
+        "mandatory": false,
+        "cast": "int"
+      },
+      "internal_metrics.include_file_tag": {
+        "label": "Internal Metrics Include File Tag",
+        "hint": "Whether or not to include the file tag on the component’s corresponding internal metrics.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "line_delimiter": {
+        "label": "Line Delimiter",
+        "hint": "String sequence used to separate one file line from another.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "max_line_bytes": {
+        "label": "Max Line Bytes",
+        "hint": "The maximum size of a line before it is discarded.",
+        "type": "int",
+        "mandatory": false,
+        "default": 102400,
+        "cast": "int"
+      },
+      "max_read_bytes": {
+        "label": "Max Read Bytes",
+        "hint": "Max amount of bytes to read from a single file before switching over to the next file. Note: This does not apply when oldest_first is true.",
+        "type": "int",
+        "mandatory": false,
+        "default": 2048,
+        "cast": "int"
+      },
+      "multiline.condition_pattern": {
+        "label": "Multiline Condition Patternr",
+        "hint": "Regular expression pattern that is used to determine whether or not more lines should be read.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "multiline.mode": {
+        "label": "Multiline Mode",
+        "hint": "Aggregation mode.",
+        "type": "enum",
+        "enum": [
+          "continue_past",
+          "continue_through",
+          "halt_before",
+          "halt_with"
+        ],
+        "mandatory": false,
+        "default": "continue_past",
+        "cast": "string"
+      },
+      "multiline.start_pattern": {
+        "label": "Multiline Start Patternr",
+        "hint": "Regular expression pattern that is used to match the start of a new message.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "multiline.timeout_ms": {
+        "label": "Multiline Timeout MS",
+        "hint": "The maximum amount of time to wait for the next additional line, in milliseconds.",
+        "type": "int",
+        "mandatory": false,
+        "cast": "int"
+      },
+      "offset_key": {
+        "label": "Offset Key",
+        "hint": "Enables adding the file offset to each event and sets the name of the log field used.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "oldest_first": {
+        "label": "Oldest First",
+        "hint": "Instead of balancing read capacity fairly across all watched files, prioritize draining the oldest files before moving on to read data from more recent files.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "remove_after_secs": {
+        "label": "Remove After Secs",
+        "hint": "After reaching EOF, the number of seconds to wait before removing the file, unless new data is written. If not specified, files are not removed.",
+        "type": "int",
+        "mandatory": false,
+        "cast": "int"
+      },
+      "rotate_wait_secs": {
+        "label": "Rotate Wait Secs",
+        "hint": "How long to keep an open handle to a rotated log file. The default value represents no limit",
+        "type": "int",
+        "mandatory": false,
+        "cast": "int"
+      }
+    }
+  }
+}

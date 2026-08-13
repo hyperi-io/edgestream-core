@@ -1,0 +1,7 @@
+---
+# Handlers
+#- name: "restart dnsmasq"
+#  ansible.builtin.service:
+#    name: dnsmasq
+#    state: restarted
+#  listen: "restart dnsmasq"

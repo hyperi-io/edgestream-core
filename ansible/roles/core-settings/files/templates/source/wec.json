@@ -1,0 +1,205 @@
+{
+  "type": "wec",
+  "version": "1.0.0",
+  "label": "Windows Event Collector",
+  "settings": {
+    "base": {
+      "address": {
+        "label": "Address",
+        "hint": "The address to listen for connections on. Windows Event Collector default port is 5986 for HTTPS and 5985 for HTTP.",
+        "type": "regex",
+        "regex": "(^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]).){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]))(?::(\\d+))?$",
+        "mandatory": true,
+        "default": "0.0.0.0:5986",
+        "cast": "string"
+      },
+      "protocol": {
+        "label": "Protocol",
+        "hint": "Transfer protocol to use for communications.",
+        "type": "enum",
+        "enum": [
+          "https",
+          "http"
+        ],
+        "mandatory": false,
+        "default": "https",
+        "cast": "string"
+      },
+      "auth": {
+        "label": "Authentication Mode",
+        "hint": "Client authentication mode.",
+        "type": "enum",
+        "enum": [
+          "tls",
+          "kerberos"
+        ],
+        "mandatory": true,
+        "default": "tls",
+        "cast": "string"
+      },
+      "krb5.principal": {
+        "label": "Kerberos Principal",
+        "hint": "Kerberos principal identity for assigning tickets.",
+        "type": "string",
+        "default": "",
+        "cast": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "kerberos"
+          }
+        ]
+      }
+    },
+    "tls": {
+      "tls.server_name": {
+        "label": "Server Name used by clients to connect to this server.",
+        "hint": "Server name.",
+        "type": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "tls"
+          }
+        ],
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "default": "",
+        "cast": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "tls"
+          }
+        ]
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "default": "",
+        "cast": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "tls"
+          }
+        ]
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "tls"
+          }
+        ]
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "tls"
+          }
+        ]
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "thumbprint": {
+        "label": "Issuer Thumbprint",
+        "hint": "The IssuerCA thumbprint of the issuing certificate. Default's to the thumbprint from the certificate file.",
+        "type": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "tls"
+          }
+        ],
+        "default": "",
+        "cast": "string"
+      },
+      "krb5.keytab": {
+        "label": "Keytab",
+        "hint": "Absolute path to the keytab file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "/etc/krb5.keytab",
+        "cast": "string",
+        "requires": [
+          {
+            "key": "auth",
+            "value": "kerberos"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    {
+      "when": [
+        {
+          "key": "auth",
+          "operator": "eq",
+          "value": "tls"
+        }
+      ],
+      "require": [
+        "tls.server_name",
+        "tls.thumbprint",
+        "tls.certificate",
+        "tls.private_key"
+      ]
+    },
+    {
+      "when": [
+        {
+          "key": "auth",
+          "operator": "eq",
+          "value": "kerberos"
+        }
+      ],
+      "require": [
+        "kerberos.keytab",
+        "kerberos.principal"
+      ]
+    }
+  ],
+  "clearOnChange": {
+    "auth": {
+      "tls": [
+        "kerberos.keytab",
+        "kerberos.principal"
+      ],
+      "kerneros": [
+        "tls.server_name",
+        "tls.thumbprint",
+        "tls.certificate",
+        "tls.private_key"
+      ]
+    }
+  }
+}

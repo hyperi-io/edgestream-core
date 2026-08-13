@@ -1,0 +1,4 @@
+# tasks/main.yml
+
+- import_tasks: dns.yml
+  when: (dns_configuration_enabled | default(edge_task_default_enabled | default(true))) | bool

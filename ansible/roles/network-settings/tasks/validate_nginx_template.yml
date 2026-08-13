@@ -1,0 +1,27 @@
+# tasks/validate_nginx_template.yml
+
+- name: "[network-settings.validate_nginx_template]: Create a temporary nginx config location"
+  tempfile:
+    state: file
+    suffix: temp
+  register: nginx_tempfile
+
+- name: "[network-settings.validate_nginx_template]: Validate nginx configuration file"
+  template:
+    src: "{{ nginx_template_src }}"
+    dest: "{{ nginx_temp_dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+    validate: bash -c 'echo "events {worker_connections 3;} http { include %s; }" > {{ nginx_temp_dest }} && nginx -prefix=/etc/nginx -t -c {{ nginx_temp_dest }}'
+  register: nginx_validation_result
+  ignore_errors: true
+
+- name: "[network-settings.validate_nginx_template]: Remove temporary nginx validation files"
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ nginx_tempfile.path }}"
+    - "{{ nginx_temp_dest }}"
+  when: nginx_tempfile.path is defined

@@ -1,0 +1,345 @@
+#!/usr/bin/env bash
+set -eEuo pipefail
+
+# ======================= Defaults (can be overridden via CLI) =======================
+BUCKET_NAMES=("vector_metric" "syslog_metric")
+THRESHOLD_BYTES=$((2 * 1024 * 1024 * 1024))      # 2 GiB
+ENGINE_DATA_DIR="/data/influxdb/engine"          # contains data/, wal/
+STATE_DIR="/var/lib/cleandb_state"               # stores <bucket>.cursor
+
+# From env or CLI --org; required before we run anything that hits Influx
+INFLUX_ORG="${INFLUX_ORG:-}"
+
+MAX_DAYS_PER_RUN=90
+SLEEP_AFTER_DELETE=5
+DELETE_BATCH_DAYS=3
+LONG_WAIT_AFTER_BATCH=20
+
+SAFETY_BUFFER_BYTES=$((200 * 1024 * 1024))
+TARGET_BYTES=$((THRESHOLD_BYTES - SAFETY_BUFFER_BYTES))
+(( TARGET_BYTES < 0 )) && TARGET_BYTES=$THRESHOLD_BYTES
+
+DRY_RUN="${DRY_RUN:-false}"
+DEBUG="${DEBUG:-0}"
+
+# ======================= CLI parsing =======================
+usage() {
+  cat <<'USAGE'
+Usage: influx-clean [options]
+
+Options:
+  -b, --buckets       Comma-separated bucket names (e.g. "vector_metric,syslog_metric")
+  -t, --threshold     Byte limit per bucket (e.g. "2G", "2147483648", "500M")
+  -e, --engine-dir    InfluxDB engine root (directory that contains "data/" and "wal/")
+  -s, --state-dir     Directory to store per-bucket cursor files
+  -o, --org           InfluxDB org (overrides $INFLUX_ORG)
+      --dry-run       Show intended deletes without executing them
+      --debug         Verbose shell tracing
+  -h, --help          Show this help
+
+Examples:
+  ./influx-clean --buckets vector_metric,syslog_metric --threshold 2G --org edgestream
+  ./influx-clean -b vector_metric -t 1500M -e /data/influxdb/engine -s /var/lib/cleandb_state -o edgestream
+USAGE
+}
+
+parse_size() {
+  # parse human sizes like 2G, 500M, 100K, or plain integer bytes
+  local s="${1^^}"  # uppercase
+  if [[ "$s" =~ ^[0-9]+$ ]]; then echo "$s"; return 0; fi
+  local num unit
+  num="${s%[KMGTPB]}"
+  unit="${s:${#num}}"
+  case "$unit" in
+    K) echo $(( num * 1024 ));;
+    M) echo $(( num * 1024 * 1024 ));;
+    G) echo $(( num * 1024 * 1024 * 1024 ));;
+    T) echo $(( num * 1024 * 1024 * 1024 * 1024 ));;
+    P) echo $(( num * 1024 * 1024 * 1024 * 1024 * 1024 ));;
+    B|"") echo "$num";;
+    *) echo "Invalid size: $1" >&2; return 1;;
+  esac
+}
+
+# simple long/short options parser
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -b|--buckets)
+      IFS=',' read -r -a BUCKET_NAMES <<< "$2"; shift 2;;
+    -t|--threshold)
+      THRESHOLD_BYTES="$(parse_size "$2")"; shift 2;;
+    -e|--engine-dir)
+      ENGINE_DATA_DIR="$2"; shift 2;;
+    -s|--state-dir)
+      STATE_DIR="$2"; shift 2;;
+    -o|--org)
+      INFLUX_ORG="$2"; shift 2;;
+    --dry-run)
+      DRY_RUN=true; shift;;
+    --debug)
+      DEBUG=1; shift;;
+    -h|--help)
+      usage; exit 0;;
+    *)
+      echo "Unknown option: $1" >&2; usage; exit 2;;
+  esac
+done
+
+# Recompute TARGET_BYTES in case threshold changed
+TARGET_BYTES=$((THRESHOLD_BYTES - SAFETY_BUFFER_BYTES))
+(( TARGET_BYTES < 0 )) && TARGET_BYTES=$THRESHOLD_BYTES
+
+# ======================= Tracing / Safety =======================
+LOG() { printf '%s %s\n' "[cleandb]" "$*" >&2; }
+if [[ "$DEBUG" == "1" ]]; then set -x; fi
+trap 'LOG "ERROR trapped on line $LINENO (last cmd: $BASH_COMMAND)"' ERR
+
+# ======================= Requirements =======================
+need() { command -v "$1" >/dev/null 2>&1 || { LOG "Missing required command: $1"; exit 1; }; }
+need influx; need jq; need du; need date; need find; need awk; need sort; need install; need mkdir
+
+# Validate org
+if [[ -z "$INFLUX_ORG" ]]; then
+  LOG "INFLUX_ORG is not set. Use --org or export INFLUX_ORG."
+  exit 1
+fi
+
+# Ensure state dir exists and writable
+if ! mkdir -p "$STATE_DIR"; then LOG "Cannot create STATE_DIR=$STATE_DIR"; exit 1; fi
+if [[ ! -w "$STATE_DIR" ]]; then LOG "STATE_DIR=$STATE_DIR not writable"; exit 1; fi
+
+# ======================= Helpers =======================
+get_bucket_id() {
+  local name="$1" json
+  json=$(influx bucket list --json --name "$name")
+  echo "$json" | jq -r --arg n "$name" '
+    if type=="array" then
+      (map(select(.name==$n)) | .[0].id // empty)
+    else
+      ([.buckets[]? | select(.name==$n)] | .[0].id // empty)
+    end
+  '
+}
+
+bucket_dir() { echo "${ENGINE_DATA_DIR}/data/${1}"; }
+
+bucket_size_bytes() { du -sb "$1" 2>/dev/null | awk '{print $1}'; }
+
+earliest_time_rfc3339() {
+  local bucket="$1" json
+  if ! json=$(influx query --org "$INFLUX_ORG" --json "
+    from(bucket: \"$bucket\")
+      |> range(start: 1970-01-01T00:00:00Z)
+      |> keep(columns: [\"_time\"])
+      |> sort(columns:[\"_time\"], desc:false)
+      |> limit(n:1)
+  " 2>/dev/null); then
+    echo ""; return
+  fi
+  echo "$json" | jq -r '[.[].records[]? | ._time] | first // empty'
+}
+
+earliest_from_filesystem() {
+  local bucket="$1" id dir epoch
+  id=$(get_bucket_id "$bucket"); [[ -z "$id" ]] && { echo ""; return; }
+  dir="$(bucket_dir "$id")"
+  epoch=$(find "$dir" -type f -name '*.tsm' -printf '%T@ %p\n' 2>/dev/null \
+          | sort -n | awk 'NR==1{print int($1)}')
+  [[ -z "${epoch:-}" ]] && { echo ""; return; }
+  date -u -d "@$epoch" '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+day_window_utc() {
+  local t="$1"
+  local day_start next_day_start today_start
+  day_start=$(date -u -d "$t" "+%Y-%m-%dT00:00:00Z")
+  next_day_start=$(date -u -d "$day_start +1 day" "+%Y-%m-%dT00:00:00Z")
+  today_start=$(date -u "+%Y-%m-%dT00:00:00Z")
+  if [[ "$day_start" > "$today_start" || "$day_start" == "$today_start" ]]; then
+    echo ""; return
+  fi
+  if [[ "$next_day_start" > "$today_start" || "$next_day_start" == "$today_start" ]]; then
+    next_day_start="$today_start"
+  fi
+  printf "%s %s\n" "$day_start" "$next_day_start"
+}
+
+day_has_points() {
+  local bucket="$1" start="$2" stop="$3" json found
+  if ! json=$(influx query --org "$INFLUX_ORG" --json "
+    from(bucket: \"$bucket\")
+      |> range(start: time(v: \"$start\"), stop: time(v: \"$stop\"))
+      |> limit(n: 1)
+  " 2>/dev/null); then
+    # be conservative on query failure
+    return 0
+  fi
+  found=$(echo "$json" | jq -r '[.[].records[]?] | length')
+  [[ "${found:-0}" -gt 0 ]]
+}
+
+add_days_utc_start_of_day() {
+  local t="$1" n="${2:-1}"
+  date -u -d "$(date -u -d "$t" +%Y-%m-%d) +${n} day" '+%Y-%m-%dT00:00:00Z'
+}
+
+delete_day() {
+  local bucket="$1" start="$2" stop="$3"
+  LOG "-> Deleting ${bucket} from ${start} to ${stop}"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    LOG "(dry-run) influx delete --org \"$INFLUX_ORG\" --bucket \"$bucket\" --start \"$start\" --stop \"$stop\""
+    return 0
+  fi
+
+  local out rc
+  out=$(influx delete \
+          --org "$INFLUX_ORG" \
+          --bucket "$bucket" \
+          --start "$start" \
+          --stop "$stop" 2>&1) || rc=$?
+  rc=${rc:-0}
+
+  if (( rc != 0 )); then
+    LOG "delete failed (rc=$rc): $out"
+    return "$rc"
+  fi
+  return 0
+}
+
+cursor_file_for() { echo "${STATE_DIR}/${1}.cursor"; }
+load_cursor()     { [[ -f "$(cursor_file_for "$1")" ]] && cat "$(cursor_file_for "$1")" || echo ""; }
+save_cursor() {
+  local bucket="$1"; local val="$2"; local file
+  file="$(cursor_file_for "$bucket")"
+  install -d -m 0755 "$STATE_DIR"
+  printf '%s\n' "$val" > "$file"
+  LOG "saved cursor for ${bucket} -> ${val}  (file: ${file})"
+}
+
+seek_to_nonempty_day() {
+  local bucket="$1" cursor="$2" start stop
+  while true; do
+    read -r start stop < <(day_window_utc "$cursor" || true)
+    [[ -z "${start:-}" || -z "${stop:-}" ]] && { echo ""; return; }
+    if day_has_points "$bucket" "$start" "$stop"; then
+      echo "$start"; return
+    fi
+    cursor=$(add_days_utc_start_of_day "$start" 1)
+  done
+}
+
+# ======================= Core =======================
+shrink_one_bucket() {
+  local bucket="$1" id dir sz days=0
+  local start stop cursor
+
+  echo "=== Bucket: ${bucket} ==="
+  id=$(get_bucket_id "$bucket")
+  if [[ -z "$id" ]]; then LOG "No such bucket: ${bucket}"; return 1; fi
+
+  dir="$(bucket_dir "$id")"
+  [[ ! -d "$dir" ]] && LOG "Data dir not found: ${dir}"
+
+  sz=$(bucket_size_bytes "$dir" || echo 0)
+  echo "  Current size: ${sz} bytes (threshold ${THRESHOLD_BYTES})"
+
+  # Load persisted cursor OR discover earliest once
+  cursor=$(load_cursor "$bucket")
+  if [[ -z "$cursor" ]]; then
+    cursor=$(earliest_time_rfc3339 "$bucket" || true)
+    [[ -z "$cursor" ]] && cursor=$(earliest_from_filesystem "$bucket" || true)
+    if [[ -z "$cursor" ]]; then
+      echo "  No data found (Flux+FS fallback empty). Nothing to delete."
+      return 0
+    fi
+    save_cursor "$bucket" "$cursor"
+  fi
+  echo "  Starting at cursor: $cursor"
+
+  # Seek to the first non-empty full day from the cursor
+  cursor=$(seek_to_nonempty_day "$bucket" "$cursor" || true)
+  if [[ -z "$cursor" ]]; then
+    echo "  No full non-empty day available to delete (reached today)."
+    return 0
+  fi
+  save_cursor "$bucket" "$cursor"
+
+  while (( sz > TARGET_BYTES )); do
+    if (( days >= MAX_DAYS_PER_RUN )); then
+      LOG "! Reached MAX_DAYS_PER_RUN=${MAX_DAYS_PER_RUN}; stopping for safety."
+      break
+    fi
+
+    read -r start stop < <(day_window_utc "$cursor" || true)
+    if [[ -z "${start:-}" || -z "${stop:-}" ]]; then
+      echo "  No full day available to delete (reached today)."
+      break
+    fi
+
+    # Double-check this day has points
+    if ! day_has_points "$bucket" "$start" "$stop"; then
+      cursor=$(seek_to_nonempty_day "$bucket" "$(add_days_utc_start_of_day "$start" 1)")
+      if [[ -z "$cursor" ]]; then
+        echo "  No more non-empty days to delete."
+        break
+      fi
+      save_cursor "$bucket" "$cursor"
+      continue
+    fi
+
+    # Try delete; if it fails, decide whether to skip or abort
+    if ! delete_day "$bucket" "$start" "$stop"; then
+      if ! day_has_points "$bucket" "$start" "$stop"; then
+        cursor=$(add_days_utc_start_of_day "$start" 1)
+        save_cursor "$bucket" "$cursor"
+        LOG "delete returned non-zero, but day is empty; advancing to ${cursor}"
+        sleep "$SLEEP_AFTER_DELETE"
+        continue
+      fi
+      LOG "delete failed and day still has points; aborting to avoid loop."
+      return 1
+    fi
+
+    # Success: advance cursor and persist immediately
+    days=$((days+1))
+    cursor=$(add_days_utc_start_of_day "$start" 1)
+    save_cursor "$bucket" "$cursor"
+
+    # pacing
+    sleep "$SLEEP_AFTER_DELETE"
+
+    # After each batch, give compaction time and recheck size
+    if (( days % DELETE_BATCH_DAYS == 0 )); then
+      echo "  Waiting ${LONG_WAIT_AFTER_BATCH}s for compaction..."
+      sleep "$LONG_WAIT_AFTER_BATCH"
+      sz=$(bucket_size_bytes "$dir" || echo 0)
+      echo "  Size after ${days} day(s) deleted: ${sz} bytes (target ${TARGET_BYTES})"
+    fi
+  done
+
+  # Final size check and re-save cursor (idempotent)
+  sz=$(bucket_size_bytes "$dir" || echo 0)
+  save_cursor "$bucket" "$cursor"
+
+  if (( sz <= THRESHOLD_BYTES )); then
+    echo "  ✅ Bucket ${bucket} is within limit."
+  else
+    echo "  ⚠️  Bucket ${bucket} still above limit; compaction may yet reduce size."
+  fi
+}
+
+main() {
+  echo "Managing buckets: ${BUCKET_NAMES[*]}"
+  echo "Data path: ${ENGINE_DATA_DIR}/data"
+  echo "State dir: ${STATE_DIR}"
+  echo "Threshold: ${THRESHOLD_BYTES} bytes"
+  echo "Org: ${INFLUX_ORG}"
+  echo
+
+  for b in "${BUCKET_NAMES[@]}"; do
+    shrink_one_bucket "$b"
+    echo
+  done
+}
+
+main "$@"

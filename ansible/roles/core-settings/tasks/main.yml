@@ -1,0 +1,36 @@
+---
+# Core settings main.yml - includes all split tasks
+
+- import_tasks: hostname.yml
+  when: (hostname_configuration_enabled
+          | default(edge_task_default_enabled | default(true))
+        ) | bool
+
+- import_tasks: timezone.yml
+  when: (timezone_configuration_enabled
+          | default(edge_task_default_enabled | default(true))
+        ) | bool
+
+- import_tasks: systemd_limits.yml
+  when: (systemd_limits_enabled
+          | default(edge_task_default_enabled | default(true))
+        ) | bool
+
+- import_tasks: auditd.yml
+  when: (auditd_configuration_enabled
+          | default(edge_task_default_enabled | default(true))
+        ) | bool
+
+- import_tasks: apt.yml
+  when: (apt_configuration_enabled
+          | default(edge_task_default_enabled | default(true))
+        ) | bool
+
+- import_tasks: edgestream.yml
+
+- import_tasks: templates.yml
+
+- import_tasks: zfs.yml
+  when: (zfs_enabled
+          | default(edge_task_default_enabled | default(true))
+        ) | bool

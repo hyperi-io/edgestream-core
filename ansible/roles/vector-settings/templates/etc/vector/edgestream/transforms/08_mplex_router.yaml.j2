@@ -1,0 +1,25 @@
+{# ---------- helpers ---------- #}
+{% set D = destination if destination is defined else {} %}
+{% set dest_name = (D.name if D is mapping and D.name is defined else 'no_name') | replace('.', '_') %}
+
+{# routes present? treat non-empty list or non-empty string as present #}
+{% set has_routes = D is mapping and D.routes is defined and ((D.routes is sequence and (D.routes | length) > 0) or (D.routes is string and (D.routes | length) > 0)) %}
+
+{# fallback truthy? accepts bool-ish strings as well #}
+{% set has_fallback = (D.fallback if D is mapping and D.fallback is defined else false) | bool %}
+
+{# multiplex_value: default 2 and clamp to >=2 #}
+{% set _mv_raw = multiplex_value | default(2, true) %}
+{% set _mv = (_mv_raw | int if (_mv_raw | string) | length > 0 else 2) %}
+{% set m = (_mv if _mv >= 2 else 2) %}
+
+type: exclusive_route
+inputs:
+  - 08_router.{{ dest_name if has_routes else ('_unmatched' if has_fallback else 'no_route') }}
+
+routes:
+{# Emit r1..r(m-1). If m==2, this yields just r1 as in your original pattern. #}
+{% for i in range(1, m) %}
+  - name: r{{ i }}
+    condition: random_int(1, {{ (m + 2 - i) | int }}) == 1
+{% endfor %}

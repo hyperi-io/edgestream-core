@@ -1,0 +1,112 @@
+---
+# tasks file for flow collector
+
+- name: "[o365audit-settings.main]: Find files in /etc/office365-audit-log-collector except config.yml"
+  ansible.builtin.find:
+    paths: /etc/office365-audit-log-collector
+    recurse: no
+    patterns: "*"
+    excludes: "config.yml"
+  register: files_to_delete
+  failed_when: false         # if path doesn't exist yet, don't fail
+  changed_when: false
+
+- name: "[o365audit-settings.main]: Delete the files except config.yml"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ files_to_delete.files | default([]) }}"
+
+- name: "[o365audit-settings.main]: Filter o365audit sources (safe default)"
+  set_fact:
+    o365_sources: >-
+      {{ (sources | default([]))
+         | selectattr('type', 'equalto', 'o365audit')
+         | selectattr('enabled', 'equalto', true)
+         | list }}
+
+- name: "[o365audit-settings.main]: Ensure base cache directory exists"
+  ansible.builtin.file:
+    path: "/var/cache/o365audit"
+    state: directory
+    owner: o365audit
+    group: o365audit
+    mode: '0700'
+
+- name: "[o365audit-settings.main]: Create directories for o365audit caches"
+  ansible.builtin.file:
+    path: "/var/cache/o365audit/{{ source.name | default('unnamed') }}"
+    state: directory
+    owner: o365audit
+    group: o365audit
+    mode: '0700'
+  loop: "{{ o365_sources | default([]) }}"
+  loop_control:
+    loop_var: source
+
+- name: "[o365audit-settings.main]: Create office365-audit-log-collector configuration files"
+  ansible.builtin.template:
+    src: ./templates/etc/office365-audit-log-collector/config.yml.j2
+    dest: "/etc/office365-audit-log-collector/{{ source.name }}.config.yml"
+    owner: o365audit
+    group: o365audit
+    mode: '0600'
+  loop: "{{ o365_sources | default([]) }}"
+  loop_control:
+    loop_var: source
+
+- name: "[o365audit-settings.main]: Manage EdgeStream Scheduler Configs"
+  block:
+    - name: "[o365audit-settings.main]: Find existing managed O365 audit configs"
+      ansible.builtin.find:
+        paths: /etc/edgestream-scheduler/config.d
+        patterns: "edgestream_o365audit_*.yml"
+      register: found_configs
+
+    - name: "[o365audit-settings.main]: Remove old managed configs to ensure sync"
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ found_configs.files }}"
+
+    - name: "[o365audit-settings.main]: Generate individual scheduler configs"
+      ansible.builtin.template:
+        src: ./templates/etc/edgestream-scheduler/config.d/o365audit.yml.j2
+        dest: "/etc/edgestream-scheduler/config.d/edgestream_o365audit_{{ item.name | default('unnamed') }}.yml"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: "{{ sources | default([]) }}"
+      when: 
+        - item.type == 'o365audit'
+        - item.enabled | default(false) | bool
+        # Explicitly check that the strings are not empty
+        - item.settings['tenant.id'] | default('') | length > 0
+        - item.settings['client.id'] | default('') | length > 0
+        - item.settings['secret.key'] | default('') | length > 0
+      notify: Reload Edgestream Scheduler
+
+- name: "[o365audit-settings.main]: List existing cache directories for o365audit"
+  ansible.builtin.find:
+    paths: /var/cache/o365audit
+    file_type: directory
+    recurse: no
+  register: existing_cache_dirs
+  failed_when: false
+  changed_when: false
+
+- name: "[o365audit-settings.main]: Remove unused cache directories"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ existing_cache_dirs.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | default('') | basename }}"
+  when:
+    - (item.path | default('')) | length > 0
+    - (item.path | basename) not in ((o365_sources | default([])) | map(attribute='name') | list)
+
+- name: "[o365audit-settings]: Signal scheduler to reload configs"
+  ansible.builtin.service:
+    name: edgestream-scheduler
+    state: reloaded

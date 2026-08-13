@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove)
+        deb-systemd-helper disable edgestream-post-init.service >/dev/null || true
+        deb-systemd-helper purge edgestream-post-init.service >/dev/null || true
+        deb-systemd-helper disable edgestream-data-disk-grow.service >/dev/null || true
+        deb-systemd-helper purge edgestream-data-disk-grow.service >/dev/null || true
+    ;;
+esac
+
+#DEBHELPER#
+exit 0

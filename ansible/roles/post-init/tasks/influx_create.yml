@@ -1,0 +1,244 @@
+# InfluxDB Configuration
+- name: "[post-init.influx_create]: Wait for dpkg/apt locks to be released"
+  ansible.builtin.shell: |
+    set -eu
+    # wait up to 10 minutes
+    timeout=600
+    start=$(date +%s)
+
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+        || fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+        || fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      now=$(date +%s)
+      if [ $((now-start)) -ge $timeout ]; then
+        echo "Timed out waiting for apt/dpkg locks"
+        # show who holds it (best-effort)
+        ps -fp "$(lsof -t /var/lib/dpkg/lock-frontend 2>/dev/null | head -n1)" 2>/dev/null || true
+        exit 1
+      fi
+      sleep 3
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - mode | default('') not in ['install', 'upgrade']
+
+- name: "[post-init.influx_create]: Install InfluxDB2 server and CLI"
+  ansible.builtin.apt:
+    name:
+      - influxdb2
+      - influxdb2-cli
+    state: present
+    force_apt_get: yes
+
+- name: "[post-init.influx_create]: Create data dir"
+  ansible.builtin.file:
+    path: /data/influxdb
+    state: directory
+    owner: influxdb
+    group: influxdb
+    mode: '0750'
+
+- name: "[post-init.influx_create]: Ensure /etc/edgestream exists"
+  ansible.builtin.file:
+    path: /etc/edgestream
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "[post-init.influx_create]: Install influxdb defaults file"
+  ansible.builtin.template:
+    src: ./templates/etc/default/influxdb2.j2
+    dest: /etc/default/influxdb2
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: "[post-init.influx_create]: Install influxdb config file"
+  ansible.builtin.template:
+    src: ./templates/etc/influxdb/config.toml.j2
+    dest: /etc/influxdb/config.toml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: "[post-init.influx_create]: Restart influxdb service"
+  ansible.builtin.service:
+    name: influxdb
+    state: restarted
+    enabled: true
+
+# ---- Unified secrets flow (single file: /etc/edgestream/influxdb.secrets) ----
+
+- name: "[post-init.influx_create]: Check unified secrets file"
+  ansible.builtin.stat:
+    path: /etc/edgestream/influxdb.secrets
+  register: influx_secrets_stat
+
+- name: "[post-init.influx_create]: Generate UUID for token/password (first time or if missing)"
+  ansible.builtin.command: /usr/bin/uuidgen
+  register: influx_uuid
+  when: not influx_secrets_stat.stat.exists
+  changed_when: false
+
+- name: "[post-init.influx_create]: Write unified secrets file (first time or if missing)"
+  ansible.builtin.copy:
+    dest: /etc/edgestream/influxdb.secrets
+    owner: root
+    group: adm
+    mode: '0640'
+    content: |
+      INFLUXDB_TOKEN={{ influx_uuid.stdout | default('', true) | trim }}
+      INFLUXDB_PASSWORD={{ influx_uuid.stdout | default('', true) | trim }}
+  when: not influx_secrets_stat.stat.exists
+
+# Read & parse the unified secrets
+- name: "[post-init.influx_create]: Read unified secrets"
+  ansible.builtin.slurp:
+    src: /etc/edgestream/influxdb.secrets
+  register: influx_secrets_raw
+  changed_when: false
+
+- name: "[post-init.influx_create]: Decode and extract token/password facts"
+  ansible.builtin.set_fact:
+    influx_secrets_text: "{{ (influx_secrets_raw.content | b64decode | string) | regex_replace('\\r','') }}"
+
+- name: "[post-init.influx_create]: Parse out token and password values"
+  ansible.builtin.set_fact:
+    influxdb_token: "{{ item.split('=')[1] | regex_replace('\\s*(?:#.*)?$', '') | regex_replace('^\"(.*)\"$', '\\1') | regex_replace(\"^'(.*)'$\", '\\1') | trim }}"
+  loop: "{{ influx_secrets_text.splitlines() | map('trim') | list }}"
+  when: item is string and item.startswith('INFLUXDB_TOKEN=')
+
+- name: "[post-init.influx_create]: Parse out password value"
+  ansible.builtin.set_fact:
+    influxdb_passwd: "{{ item.split('=')[1] | regex_replace('\\s*(?:#.*)?$', '') | regex_replace('^\"(.*)\"$', '\\1') | regex_replace(\"^'(.*)'$\", '\\1') | trim }}"
+  loop: "{{ influx_secrets_text.splitlines() | map('trim') | list }}"
+  when: item is string and item.startswith('INFLUXDB_PASSWORD=')
+
+- name: "[post-init.influx_create]: Validate parsed InfluxDB token"
+  ansible.builtin.assert:
+    that:
+      - influxdb_token is string
+      - influxdb_token | length > 0
+    fail_msg: "INFLUXDB_TOKEN not found or empty in /etc/edgestream/influxdb.secrets"
+
+# ---- Smart State Detection / Initialization Execution Block ----
+
+- name: "[post-init.influx_create]: Check InfluxDB setup status via API"
+  ansible.builtin.uri:
+    url: "http://localhost:8086/api/v2/setup"
+    method: GET
+    status_code: 200
+  register: influx_setup_api_status
+  changed_when: false
+
+- name: "[post-init.influx_create]: Clear stale CLI configs if InfluxDB engine requires setup"
+  ansible.builtin.file:
+    path: ~/.influxdbv2/configs
+    state: absent
+  when: influx_setup_api_status.json.allowed | default(false)
+
+- name: "[post-init.influx_create]: Initialize InfluxDB non-interactively (Setup instance, org, bucket & auth)"
+  ansible.builtin.command: >
+    influx setup
+    --name default
+    --username admin
+    --password "{{ influxdb_passwd }}"
+    --org edgestream
+    --bucket vector_metric
+    --token "{{ influxdb_token }}"
+    --force
+  when: influx_setup_api_status.json.allowed | default(false)
+  changed_when: true
+
+- name: "[post-init.influx_create]: Ensure CLI active config matches parsed token"
+  ansible.builtin.shell: |
+    set -eu
+    if influx config list | grep -q "default"; then
+      influx config set --config-name default --host-url http://localhost:8086 --org edgestream --token "$INFLUX_TOKEN" --active
+    else
+      influx config create --config-name default --host-url http://localhost:8086 --org edgestream --token "$INFLUX_TOKEN" --active
+    fi
+  args:
+    executable: /bin/bash
+  environment:
+    INFLUX_TOKEN: "{{ influxdb_token }}"
+  changed_when: false
+
+# ---- Bucket Management: vector_metric ----
+
+- name: "[post-init.influx_create]: Check vector_metric bucket existence"
+  ansible.builtin.command: >
+    influx bucket list
+    --name vector_metric
+    --org edgestream
+    --token "{{ influxdb_token }}"
+  register: influx_vector_metric_check
+  failed_when: false
+  changed_when: false
+
+- name: "[post-init.influx_create]: Create vector_metric bucket if missing"
+  ansible.builtin.command: >
+    influx bucket create
+    --name vector_metric
+    --org edgestream
+    --retention 72d
+    --token "{{ influxdb_token }}"
+  when: influx_vector_metric_check.rc != 0 or 'vector_metric' not in influx_vector_metric_check.stdout
+  changed_when: true
+
+- name: "[post-init.influx_create]: Ensure vector_metric bucket retention is set correctly if it already existed"
+  ansible.builtin.shell: |
+    set -eu
+    bucket_id=$(influx bucket list --org edgestream --name vector_metric --token "$INFLUX_TOKEN" --json | grep -o '"id":"[^"]*' | head -n1 | cut -d'"' -f4 || true)
+    if [ -n "$bucket_id" ]; then
+      influx bucket update --id "$bucket_id" --retention 72d --token "$INFLUX_TOKEN"
+    fi
+  args:
+    executable: /bin/bash
+  environment:
+    INFLUX_TOKEN: "{{ influxdb_token }}"
+  changed_when: false
+  when:
+    - influx_vector_metric_check.rc == 0
+    - "'vector_metric' in influx_vector_metric_check.stdout"
+
+# ---- Bucket Management: health_metric ----
+
+- name: "[post-init.influx_create]: Check health_metric bucket existence"
+  ansible.builtin.command: >
+    influx bucket list
+    --name health_metric
+    --org edgestream
+    --token "{{ influxdb_token }}"
+  register: influx_health_metric_check
+  failed_when: false
+  changed_when: false
+
+- name: "[post-init.influx_create]: Create health_metric bucket if missing"
+  ansible.builtin.command: >
+    influx bucket create
+    --name health_metric
+    --org edgestream
+    --retention 72d
+    --token "{{ influxdb_token }}"
+  when: influx_health_metric_check.rc != 0 or 'health_metric' not in influx_health_metric_check.stdout
+  changed_when: true
+
+- name: "[post-init.influx_create]: Ensure health_metric bucket retention is set correctly if it already existed"
+  ansible.builtin.shell: |
+    set -eu
+    bucket_id=$(influx bucket list --org edgestream --name health_metric --token "$INFLUX_TOKEN" --json | grep -o '"id":"[^"]*' | head -n1 | cut -d'"' -f4 || true)
+    if [ -n "$bucket_id" ]; then
+      influx bucket update --id "$bucket_id" --retention 72d --token "$INFLUX_TOKEN"
+    fi
+  args:
+    executable: /bin/bash
+  environment:
+    INFLUX_TOKEN: "{{ influxdb_token }}"
+  changed_when: false
+  when:
+    - influx_health_metric_check.rc == 0
+    - "'health_metric' in influx_health_metric_check.stdout"

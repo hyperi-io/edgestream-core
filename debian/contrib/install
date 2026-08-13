@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ ! -f /etc/edgestream/.initialized ]; then
+    
+    /opt/edgestream-core/bin/pyedgestream system --write-config
+
+    cd /opt/edgestream-core || (echo "ERROR: unable to change to working directory" && exit 1)
+    
+    ansible-playbook ./install.yml
+
+    RET=$?
+    
+    if [ $RET -eq 0 ]; then
+        echo "SUCCESS: configured initial edgestream gateway state"
+        touch /etc/edgestream/.initialized
+    fi
+    exit $RET
+fi
+
+exit 0

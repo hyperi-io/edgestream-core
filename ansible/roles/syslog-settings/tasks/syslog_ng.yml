@@ -1,0 +1,128 @@
+---
+# syslog-ng configuration (SYSLOG SETTINGS | 1.1)
+
+- name: "[syslog-settings.syslog_ng]: Configure syslog-ng configuration file and settings"
+  block:
+    - name: "[syslog-settings.syslog_ng]: Install syslog-ng and JSON module"
+      ansible.builtin.apt:
+        name:
+          - syslog-ng
+          - syslog-ng-mod-json
+        state: present
+
+    - name: "[syslog-settings.syslog_ng]: Purge rsyslog to ensure syslog-ng takes over"
+      ansible.builtin.apt:
+        name: rsyslog
+        state: absent
+        purge: yes
+
+    - name: "[syslog-settings.syslog_ng]: Create local configuration directory"
+      ansible.builtin.file:
+        path: /etc/syslog-ng/conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      
+    - name: "[syslog-settings.syslog_ng]: Create Vector socket directory"
+      ansible.builtin.file:
+        path: /run/vector
+        state: directory
+        owner: root
+        group: vector
+        mode: '0770'
+
+    # ---- Unified InfluxDB secrets handling (no legacy) ----
+    - name: "[syslog-settings.syslog_ng]: Check unified InfluxDB secrets file exists"
+      ansible.builtin.stat:
+        path: /etc/edgestream/influxdb.secrets
+      register: influx_secrets_stat
+
+    - name: "[syslog-settings.syslog_ng]: Fail if unified InfluxDB secrets file is missing"
+      ansible.builtin.fail:
+        msg: >
+          /etc/edgestream/influxdb.secrets not found.
+          Ensure provisioning created it with:
+          INFLUXDB_TOKEN=<token>
+      when: not influx_secrets_stat.stat.exists
+
+    - name: "[syslog-settings.syslog_ng]: Read unified InfluxDB secrets"
+      ansible.builtin.slurp:
+        src: /etc/edgestream/influxdb.secrets
+      register: influx_secrets_raw
+      changed_when: false
+
+    - name: "[vsyslog-settings.syslog_ng]: Decode secrets text (normalize CRLF)"
+      ansible.builtin.set_fact:
+        influx_secrets_text: "{{ (influx_secrets_raw.content | b64decode | string) | regex_replace('\\r','') }}"
+
+    - name: "[syslog-settings.syslog_ng]: Split + trim lines"
+      ansible.builtin.set_fact:
+        influx_secret_lines: "{{ influx_secrets_text.splitlines() | map('trim') | list }}"
+        
+    # Init facts to avoid 'undefined' later
+    - name: "[syslog-settings.syslog_ng]: Init parsed facts"
+      ansible.builtin.set_fact:
+        influxdb_token: ""
+        _matched_token_lines: []
+
+    # Collect matching lines via startswith (no regex control, no break)
+    - name: "[syslog-settings.syslog_ng]: Collect token lines"
+      ansible.builtin.set_fact:
+        _matched_token_lines: "{{ _matched_token_lines + [item] }}"
+      loop: "{{ influx_secret_lines }}"
+      when:
+        - item is string
+        - item != ""
+        - (item.startswith('INFLUXDB_TOKEN=') or item.startswith('export INFLUXDB_TOKEN='))
+
+    # Choose effective lines (prefer last match)
+    - name: "[syslog-settings.syslog_ng]: Choose effective lines"
+      ansible.builtin.set_fact:
+        influx_token_line: "{{ (_matched_token_lines | list | reverse | first | default('')) }}"
+
+    # Extract values (right of '='); strip quotes, comments, whitespace
+    - name: "[syslog-settings.syslog_ng]: Extract values"
+      ansible.builtin.set_fact:
+        influxdb_token: >-
+          {{
+            (
+              (influx_token_line.split('=', 1)[1]) if ('=' in influx_token_line) else ''
+            )
+            | regex_replace('\\s*(?:#.*)?$', '')
+            | regex_replace('^\"(.*)\"$', '\\1')
+            | regex_replace("^'(.*)'$", '\\1')
+            | trim
+          }}
+
+    - name: "[syslog-settings.syslog_ng]: Validate parsed InfluxDB token"
+      ansible.builtin.assert:
+        that:
+          - influxdb_token is string
+          - influxdb_token | length > 0
+        fail_msg: "INFLUXDB_TOKEN not found or empty in /etc/edgestream/influxdb.secrets"
+
+    - name: "[syslog-settings.syslog_ng]: Expand syslog base config"
+      ansible.builtin.template:
+        src: ./templates/etc/syslog-ng/syslog-ng.conf.j2
+        dest: /etc/syslog-ng/syslog-ng.conf
+        owner: root
+        group: root
+        mode: '0644'
+      register: syslog_config
+
+    - name: "[syslog-settings.syslog_ng]: Expand syslog template"
+      ansible.builtin.template:
+        src: ./templates/etc/syslog-ng/conf.d/edgestream.conf.j2
+        dest: /etc/syslog-ng/conf.d/edgestream.conf
+        owner: root
+        group: root
+        mode: '0644'
+      register: syslog_template
+
+    # START/RESTART combined: This is now the only service task
+    - name: "[syslog-settings.syslog_ng]: Ensure syslog-ng is running and refreshed"
+      ansible.builtin.systemd:
+        name: syslog-ng
+        state: "{{ 'restarted' if ( syslog_config.changed or syslog_template.changed ) else 'started' }}"
+        enabled: yes

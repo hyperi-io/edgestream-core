@@ -1,0 +1,108 @@
+{
+  "type": "o365audit",
+  "version": "1.0.0",
+  "label": "Office 365 Audit",
+  "settings": {
+    "base": {
+      "client.id": {
+        "label": "Client ID",
+        "hint": "The unique identifier assigned to your Azure AD application entry.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      },
+      "tenant.id": {
+        "label": "Tenant ID",
+        "hint": "The unique identifier for your Azure AD tenant.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      },
+      "secret.key": {
+        "label": "Secret Key",
+        "hint": "The credential created for your application entry. (Actual key is only shown once upon creation)",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "tls": {},
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "poll_schedule": {
+        "label": "Poll Schedule",
+        "hint": "Poll for new audit logs every secs. The format can include a number appended with the unit, d (days), h (hours), m (minutes), s (seconds) or a combination, such as 1h30m.",
+        "type": "string",
+        "mandatory": false,
+        "default": "10m",
+        "cast": "string"
+      },
+      "hourstocollect": {
+        "label": "Hours to Collect",
+        "hint": "Look back this many hours for audit logs (max supported by Office API is 168). This should be greater than the poll schedule",
+        "type": "int",
+        "mandatory": false,
+        "default": 24,
+        "cast": "int"
+      },
+      "audit.general": {
+        "label": "Audit General",
+        "hint": "Collect Audit General logs.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "audit.azureactivedirectory": {
+        "label": "Audit AzureActiveDirectory",
+        "hint": "Collect Audit AzureActiveDirectory logs.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "audit.exchange": {
+        "label": "Audit Exchange",
+        "hint": "Collect Audit Exchange logs.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "audit.sharepoint": {
+        "label": "Audit SharePoint",
+        "hint": "Collect Audit SharePoint logs.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "dlp.all": {
+        "label": "DLP All",
+        "hint": "Collect DLP All logs.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "maxthreads": {
+        "label": "Max Threads",
+        "hint": "Maximum number of simultaneous threads retrieving logs.",
+        "type": "int",
+        "mandatory": false,
+        "default": 10,
+        "cast": "int"
+      }
+    }
+  }
+}

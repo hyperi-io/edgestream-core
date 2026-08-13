@@ -1,0 +1,9 @@
+# Host metrics for influxdb on edgestream
+type: host_metrics
+collectors:
+    - cpu
+    - memory
+    - disk
+    - load
+    - network
+scrape_interval_secs: 15 # Match your dashboard resolution

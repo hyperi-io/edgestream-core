@@ -1,0 +1,11 @@
+---
+
+- hosts: all
+  become: true
+
+  roles:
+      - role: "{{ playbook_dir }}"
+
+  vars_files:
+    - /opt/edgestream-core/etc/source_path.yml
+    - "{{ edgestream_settings_file }}"

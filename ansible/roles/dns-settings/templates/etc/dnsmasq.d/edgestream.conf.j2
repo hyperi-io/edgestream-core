@@ -1,0 +1,45 @@
+no-hosts
+no-dhcp-interface=lo
+interface=lo
+listen-address=127.0.0.1
+no-resolv
+
+{# ---------- Safe locals ---------- #}
+{% set nets = networks | default({}) %}
+{% set fwd = nets.dns_forwarders | default([]) %}
+{% set ups = nets.dns | default([]) %}
+{% set hosts = nets.static_hosts | default([]) %}
+
+{# ---------- Forwarders with domain scoping ---------- #}
+{% for item in fwd %}
+{% set domain = item.domain | default('') | string | trim %}
+{% set ip     = item.ip_address | default('') | string | trim %}
+{% set port   = (item.port | default(53)) | int %}
+{% if domain and ip %}
+{# wrap IPv6 in [] for dnsmasq #}
+{% set ip_fmt = '[' ~ ip ~ ']' if (':' in ip) else ip %}
+server=/{{ domain }}/{{ ip_fmt }}#{{ port }}
+{% endif %}
+{% endfor %}
+
+{# ---------- Plain upstream servers ---------- #}
+{% for item in ups %}
+{% set ip   = item.ip_address | default('') | string | trim %}
+{% set port = (item.port | default(53)) | int %}
+{% if ip %}
+{% set ip_fmt = '[' ~ ip ~ ']' if (':' in ip) else ip %}
+server={{ ip_fmt }}#{{ port }}
+{% endif %}
+{% endfor %}
+
+{# ---------- Static hosts ---------- #}
+{% for item in hosts %}
+{% set host = item.host | default('') | string | trim %}
+{% set ip   = item.ip_address | default('') | string | trim %}
+{% if host and ip %}
+host-record={{ host }},{{ ip }}
+{% endif %}
+{% endfor %}
+
+bind-interfaces
+all-servers

@@ -1,0 +1,25 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set _parents = (transform.parent if transform is defined and transform.parent is defined else []) %}
+{% if _parents is string %}
+{% set _parent_name = _parents %}
+{% else %}
+{% set _parent_name = (_parents | first) | default('', true) %}
+{% endif %}
+{% set parent_sanitized = (_parent_name | default('root', true)) | replace('.', '_') %}
+{% set qr = (transform.query_raw if transform is defined and transform.query_raw is defined else '') %}
+
+# Filter
+type: filter
+inputs:
+  - "05_{{ parent_sanitized }}"
+
+condition:
+  type: vrl
+{% if (qr | string) | length > 0 %}
+  source: |-
+{{ ((qr|string)|trim('\n'))|indent(4, true) }}
+{% else %}
+  source: |-
+    # (empty)
+{% endif %}

@@ -1,0 +1,1 @@
+ansible/roles/network-settings/templates/etc/nginx/sites-available/edgestream-revproxy.j2

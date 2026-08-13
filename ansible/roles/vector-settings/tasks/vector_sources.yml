@@ -1,0 +1,69 @@
+---
+# VECTOR SOURCES
+
+- name: "[vector-settings.vector_sources]: Ensure destination directories exist"
+  file:
+    path: "/etc/vector/edgestream/sources"
+    state: directory
+    owner: root
+    group: vector
+    mode: "0750"
+
+- name: "[vector-settings.vector_sources]: Collect enabled sources (safe default)"
+  set_fact:
+    enabled_sources: >-
+      {{ (sources | default([]))
+         | selectattr('enabled', 'equalto', true)
+         | list }}
+
+- name: "[vector-settings.vector_sources]: Check if template exists for each enabled source"
+  stat:
+    path: "{{ role_path }}/templates/etc/vector/edgestream/sources/{{ item.type | default('') }}.yaml.j2"
+  loop: "{{ enabled_sources | default([]) }}"
+  loop_control:
+    label: "{{ item.name | default('unnamed') }}"
+  register: source_template_stats
+  when: (enabled_sources | default([])) | length > 0
+
+- name: "[vector-settings.vector_sources]: Render templates for enabled sources with available templates"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/sources/{{ item.item.type | default('') }}.yaml.j2"
+    dest: "/etc/vector/edgestream/sources/01_{{ item.item.name | default('unnamed') }}.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  loop: "{{ (source_template_stats.results | default([])) }}"
+  when:
+    - source_template_stats is defined
+    - item.stat is defined
+    - item.stat.exists | default(false)
+  vars:
+    source: "{{ item.item | default({}) }}"
+
+# ---------------- System source templates ----------------
+
+- name: "[vector-settings.vector_sources]: Decide if system sources should be rendered"
+  set_fact:
+    _render_system_sources: "{{ (vector_settings_system_sources | default(true)) | bool }}"
+
+- name: "[vector-settings.vector_sources]: Find system source templates"
+  find:
+    paths: "{{ role_path }}/templates/etc/vector/edgestream/sources/system"
+    patterns: "*.yaml.j2"
+  register: system_source_templates
+  when: _render_system_sources
+
+- name: "[vector-settings.vector_sources]: Render system source templates directly"
+  template:
+    src: "{{ item.path }}"
+    dest: "/etc/vector/edgestream/sources/{{ item.path | basename | regex_replace('\\.j2$', '') }}"
+    owner: root
+    group: vector
+    mode: "0640"
+  loop: "{{ system_source_templates.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when:
+    - _render_system_sources
+    - system_source_templates is defined
+    - (system_source_templates.files | default([])) | length > 0

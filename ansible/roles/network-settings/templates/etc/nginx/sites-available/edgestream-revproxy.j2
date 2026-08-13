@@ -1,0 +1,147 @@
+# EdgeStream Gateway reverse proxy
+
+# HARDENING: Map for Connection and Upgrade header toggles
+map $http_upgrade $connection_upgrade {
+    "~*websocket" "upgrade";
+    default        "close";
+}
+
+map $http_upgrade $upgrade_header {
+    "~*websocket" "websocket";
+    default        "";
+}
+
+upstream edgestream-dashboard {
+      server 127.0.0.1:3000;
+      keepalive 15;
+}
+
+upstream edgestream-api {
+      server 127.0.0.1:3001;
+      keepalive 10;
+}
+
+upstream edgestream-websocket {
+      server 127.0.0.1:8686;
+      keepalive 10;
+}
+
+upstream edgestream-influx {
+      server 127.0.0.1:8086;
+      keepalive 10;
+}
+
+{# --- Robust Advanced Settings Resolver --- #}
+{% set adv = advanced | default([]) %}
+
+{% macro get_adv(items, key, default_val) -%}
+  {%- set match = items | selectattr('label', 'defined') | selectattr('label', 'equalto', key) | list -%}
+  {%- if match | length > 0 and match[0].value | string | trim | length > 0 -%}
+    {{ match[0].value | string | trim }}
+  {%- elif match | length > 0 and match[0].default_value | string | trim | length > 0 -%}
+    {{ match[0].default_value | string | trim }}
+  {%- else -%}
+    {{ default_val }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% set listen_port = get_adv(adv, 'webui.listen_port', '443') %}
+{% set ssl_crt = nginx_ssl_certificate | default('/etc/edgestream/ssl/nginx-server.crt', true) | string | trim %}
+{% set ssl_key = nginx_ssl_private_key | default('/etc/edgestream/ssl/nginx-server.key', true) | string | trim %}
+
+{# Ensure port is strictly numeric #}
+{% if not (listen_port is match('^\\d+$')) %}
+  {% set listen_port = '443' %}
+{% endif %}
+
+server {
+        listen {{ listen_port }} default_server ssl;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_certificate {{ ssl_crt }};
+        ssl_certificate_key {{ ssl_key }};
+
+        root /opt/edgestream-webui/html;
+        index index.html;
+        server_name _;
+
+        # GLOBAL SECURITY HEADERS
+        add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        
+        set $base_csp "default-src 'self'; img-src 'self' data:; connect-src 'self' wss: https:; form-action 'none'; frame-ancestors 'none'; font-src fonts.gstatic.com; style-src 'self' fonts.googleapis.com 'unsafe-inline'; script-src 'self' 'unsafe-inline'";
+        add_header Content-Security-Policy $base_csp always;
+
+        location /api {
+                proxy_pass http://edgestream-api;
+                proxy_http_version 1.1;
+                proxy_set_header Host $http_host;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Real-IP $remote_addr;
+
+                # nosemgrep
+                proxy_set_header Upgrade $upgrade_header;
+                proxy_set_header Connection $connection_upgrade;
+                
+                proxy_cache_bypass $http_upgrade;
+        }
+
+        location = /influx/env.js {
+                add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                add_header Content-Type application/javascript;
+                return 200 "var prefix='/influx/'; process = {'env' : {'STATIC_PREFIX':prefix,'API_PREFIX':prefix, 'BASE_PATH': prefix, 'API_BASE_PATH':prefix}};";
+        }
+
+        location /influx/ {
+                gzip off;
+                rewrite ^/influx$ https://$host/influx/ permanent;
+                rewrite ^/influx/(.*) /$1 break;
+
+                proxy_cookie_path ~*^/api /influx/api;
+                proxy_set_header Authorization $http_authorization;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Real-IP $remote_addr;
+
+                add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ws:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';" always;
+
+                proxy_hide_header Content-Security-Policy;
+                proxy_pass http://edgestream-influx;
+        }
+
+        location /grpc/ {
+                rewrite ^/grpc/(.*) /$1 break;
+                proxy_pass http://127.0.0.1:8080;
+
+                proxy_buffering off;
+                proxy_request_buffering off;
+                proxy_cache off;
+                proxy_set_header X-Accel-Buffering no;
+                
+                proxy_read_timeout 1d;
+                proxy_send_timeout 1d;
+                keepalive_timeout 1d;
+
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection $connection_upgrade;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+
+                add_header 'Access-Control-Allow-Origin' '*' always;
+                add_header 'Access-Control-Expose-Headers' 'grpc-status,grpc-message' always;
+        }
+
+        location / {
+                proxy_pass http://edgestream-dashboard;
+                proxy_set_header Host $http_host;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_redirect off;
+        }
+}

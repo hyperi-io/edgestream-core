@@ -1,0 +1,44 @@
+{
+  "type": "internal_metrics",
+  "version": "1.0.0",
+  "label": "Internal Metrics",
+  "settings": {
+    "base": {
+      "metric_to_log": {
+        "label": "Metric to Log",
+        "hint": "Convert a metric event into a log event, which can be useful for sending metrics to log-support downstream components.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      }
+    },
+    "tls": {},
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "namespace": {
+        "label": "Namespace",
+        "hint": "Overrides the default namespace for the metrics emitted by the source.",
+        "type": "string",
+        "mandatory": false,
+        "default": "vector",
+        "cast": "string"
+      },
+      "scrape_interval_secs": {
+        "label": "Scrape Interval Secs",
+        "hint": "The interval between metric gathering, in seconds.",
+        "type": "int",
+        "mandatory": false,
+        "default": 1,
+        "cast": "int"
+      }
+    }
+  }
+}

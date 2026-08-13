@@ -1,0 +1,206 @@
+---
+# tasks file for edgestream gateway
+
+- name: "[core-installer.base]: Hold EdgeStream packages during base OS changes"
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - edgestream-core
+    - edgestream-api
+    - edgestream-webui
+    - edgestream-scheduler
+  ignore_errors: true
+
+# Add ssh allow group if it does not exist
+- name: "[core-installer.base]: Ensure group sshaccess exists"
+  ansible.builtin.group:
+    name: sshaccess
+    state: present
+
+- name: "[core-installer.base]: Install apt-transport-https package"
+  ansible.builtin.apt:
+    name: apt-transport-https
+    state: present
+
+- name: "[core-installer.base]: Install auditd package"
+  ansible.builtin.apt:
+    name: auditd
+    state: present
+
+- name: "[core-installer.base]: Install ca-certificates package"
+  ansible.builtin.apt:
+    name: ca-certificates
+    state: present
+
+- name: "[core-installer.base]: Install curl package"
+  ansible.builtin.apt:
+    name: curl
+    state: present
+
+- name: "[core-installer.base]: Install nginx"
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: "[core-installer.base]: Install python3-pyotp"
+  ansible.builtin.apt:
+    name: python3-pyotp
+    state: present
+
+- name: "[core-installer.base]: Install python3-pyqrcode"
+  ansible.builtin.apt:
+    name: python3-pyqrcode
+    state: present
+
+- name: "[core-installer.base]: Install libpam-google-authenticator"
+  ansible.builtin.apt:
+    name: libpam-google-authenticator
+    state: present
+
+- name: "[core-installer.base]: Install uuid-runtime"
+  ansible.builtin.apt:
+    name: uuid-runtime
+    state: present
+
+- name: "[core-installer.base]: Install dnsmasq"
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+
+- name: "[core-installer.base]: Install chrony"
+  ansible.builtin.apt:
+    name: chrony
+    state: present
+
+- name: "[core-installer.base]: Enable chrony"
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: "[core-installer.base]: Install monit"
+  ansible.builtin.apt:
+    name: monit
+    state: present
+
+- name: "[core-installer.base]: Enable monit service"
+  systemd:
+    name: monit.service
+    enabled: true
+    masked: no
+
+- name: "[core-installer.base]: Install edgestream-scheduler"
+  ansible.builtin.apt:
+    name: edgestream-scheduler
+    state: present
+
+- name: "[core-installer.base]: Install o365audit"
+  ansible.builtin.apt:
+    name: office365-audit-log-collector
+    state: present
+    
+- name: "[core-installer.base]: Install vector"
+  ansible.builtin.apt:
+    name: vector
+    state: present
+
+- name: "[core-installer.base]: Remove network-manager"
+  ansible.builtin.apt:
+    name: network-manager
+    state: absent
+    purge: true
+
+- name: "[core-installer.base]: Create global data dir which is removed by tmpfiles"
+  file:
+    path: "{{ globalCacheDirectory | default('/data') }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "[core-installer.base]: Create vector data dir which is removed by tmpfiles"
+  file:
+    path: "{{ vectorCacheDirectory | default('/data/vector') }}"
+    state: directory
+    owner: vector
+    group: vector
+    mode: '0750'
+
+- name: "[core-installer.base]: Create vector run dir which is removed by tmpfiles"
+  file:
+    path: /run/vector
+    state: directory
+    owner: vector
+    group: vector
+    mode: '0750'
+    
+- name: "[core-installer.base]: Expand vector tmpfiles template"
+  template:
+    src: ./templates/usr/lib/tmpfiles.d/vector.conf.j2
+    dest: /usr/lib/tmpfiles.d/vector.conf
+    owner: root
+    group: vector
+    mode: '0640'
+    backup: no
+    
+- name: "[core-installer.base]: Copy vector file to monit.d directory"
+  copy:
+    src: ./files/vector.monitd
+    dest: /etc/monit/conf-available/vector
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+- name: "[core-installer.base]: Create symlink to enable vector monit config"
+  file:
+    src: /etc/monit/conf-available/vector
+    dest: /etc/monit/conf-enabled/vector
+    state: link
+
+- name: "[core-installer.base]: Reload monit service"
+  systemd:
+    name: monit.service
+    enabled: yes
+    state: reloaded
+
+- name: "[core-installer.base]: Install sshd_config customizations"
+  copy:
+    src: ./files/90-edgestream.conf
+    dest: /etc/ssh/sshd_config.d/90-edgestream.conf
+    force: false
+    owner: root
+    group: root
+    mode: '0600'
+    backup: no
+
+- name: "[core-installer.base]: Reload sshd service"
+  systemd:
+    name: sshd.service
+    enabled: yes
+    state: reloaded
+
+- name: "[core-installer.base]: Remove sshd install password login left over"
+  file:
+    state: absent
+    path: /etc/ssh/sshd_config.d/50-cloud-init.conf
+
+- name: "[core-installer.base]: Ensure /etc/edgestream is group-readable by edgestream"
+  ansible.builtin.file:
+    path: /etc/edgestream
+    state: directory
+    owner: root
+    group: edgestream
+    mode: '0750'
+
+- name: "[core-installer.base]: Unhold EdgeStream packages"
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: install
+  loop:
+    - edgestream-core
+    - edgestream-api
+    - edgestream-webui
+    - edgestream-scheduler
+  ignore_errors: true

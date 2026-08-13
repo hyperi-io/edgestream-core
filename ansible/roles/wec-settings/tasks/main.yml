@@ -1,0 +1,98 @@
+---
+# tasks file for wec
+
+#- name: Install krb5-user
+#  apt:
+#    name: krb5-user
+#    state: present
+
+#- name: Expand krb5.conf files
+#  template:
+#    src: ./templates/etc/krb5.conf.j2
+#    dest: /etc/krb5.conf
+#    owner: root
+#    group: root
+#    mode: '0644'
+
+- name: "[wec-settings.main]: Ensure pywec group exists"
+  group:
+    name: pywec
+    state: present
+
+- name: "[wec-settings.main]: Ensure edgestream user exists (if you manage it here)"
+  user:
+    name: edgestream
+    state: present
+    shell: /usr/sbin/nologin
+
+- name: "[wec-settings.main]: Check if group 'vector' exists"
+  command: getent group vector
+  register: vector_group
+  ignore_errors: true
+  changed_when: false
+
+- name: "[wec-settings.main]: Add user 'pywec' to group 'vector' if it exists"
+  user:
+    name: pywec
+    groups: vector
+    append: true
+  when: vector_group.rc == 0
+
+- name: "[wec-settings.main]: Ensure edgestream is in pywec group"
+  user:
+    name: edgestream
+    groups: pywec
+    append: yes
+
+- name: "[wec-settings.main]: Detect enabled WEC sources"
+  set_fact:
+    wec_sources_enabled: >-
+      {{ sources
+          | selectattr('type', 'match', 'wec', ignorecase=True)
+          | selectattr('enabled', 'truthy', convert_bool=True)
+          | list
+      }}
+  when: sources is defined
+
+- name: "[wec-settings.main]: Expand PyWEC config"
+  template:
+    src: ./templates/etc/pywec/config.yml.j2
+    dest: /etc/pywec/config.yml
+    owner: root
+    group: root
+    mode: '0644'
+  when:
+    - wec_sources_enabled is defined
+    - wec_sources_enabled | length > 0
+
+- name: "[wec-settings.main]: Ensure /var/lib/pywec directory has correct owner/group/mode"
+  file:
+    path: /var/lib/pywec
+    state: directory
+    owner: pywec
+    group: pywec
+    mode: "0770"
+
+- name: "[wec-settings.main]: Ensure /var/lib/pywec/run directory has correct owner/group/mode"
+  file:
+    path: /var/lib/pywec/run
+    state: directory
+    owner: pywec
+    group: pywec
+    mode: "0770"
+
+# Optional: only touch perms on the DB if it already exists
+- name: "[wec-settings.main]: Stat pywec.db"
+  stat:
+    path: /var/lib/pywec/pywec.db
+  register: pywec_db_stat
+
+- name: "[wec-settings.main]: Ensure pywec.db has correct owner/group/mode"
+  file:
+    path: /var/lib/pywec/pywec.db
+    state: file
+    owner: pywec
+    group: pywec
+    mode: "0660"
+  when: pywec_db_stat.stat.exists
+  

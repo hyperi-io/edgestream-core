@@ -1,0 +1,48 @@
+# tasks/flow_collector.yml
+
+- name: "[netflow-settings.flow_collector]: Determine whether any netflow sources are enabled"
+  ansible.builtin.set_fact:
+    flow_collector_enabled: >-
+      {{
+        (
+          sources | default([])
+          | selectattr('type', 'equalto', 'netflow')
+          | selectattr('enabled', 'equalto', true)
+          | list
+          | length
+        ) > 0
+      }}
+
+- name: "[netflow-settings.flow_collector]: Expand flow-collector config"
+  ansible.builtin.template:
+    src: ./templates/etc/flow-collector/config.yaml.j2
+    dest: /etc/flow-collector/config.yaml
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: flow_service
+  when: flow_collector_enabled | bool
+
+- name: "[netflow-settings.flow_collector]: Enable and start flow-collector service when netflow sources are enabled"
+  ansible.builtin.service:
+    name: flow-collector
+    state: started
+    enabled: true
+  when: flow_collector_enabled | bool
+
+- name: "[netflow-settings.flow_collector]: Restart flow-collector service when config changed"
+  ansible.builtin.service:
+    name: flow-collector
+    state: restarted
+  when:
+    - flow_collector_enabled | bool
+    - flow_service is defined
+    - flow_service.changed | default(false) | bool
+
+- name: "[netflow-settings.flow_collector]: Disable and stop flow-collector service when no netflow sources are enabled"
+  ansible.builtin.service:
+    name: flow-collector
+    state: stopped
+    enabled: false
+  when: not (flow_collector_enabled | bool)

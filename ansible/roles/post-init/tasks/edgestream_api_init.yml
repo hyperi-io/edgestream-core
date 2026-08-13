@@ -1,0 +1,68 @@
+---
+# tasks file for post-init
+- name: "[post-init] Wait for database file to be created by the API service"
+  ansible.builtin.wait_for:
+    path: /var/lib/edgestream/edgestreamhub.db
+    state: present
+    timeout: 60
+
+- name: "[post-init] Wait for secrets file to be created by the API service"
+  ansible.builtin.wait_for:
+    path: /etc/edgestream/edgestream-api.secrets
+    state: present
+    timeout: 60
+
+# /etc/edgestream/edgestream-api.secrets
+
+# --- read the secrets file if present
+- name: "[post-init]: Check for edgestream API secrets file"
+  ansible.builtin.stat:
+    path: "{{ edgestream_secrets_file | default('/etc/edgestream/edgestream-api.secrets') }}"
+  register: es_secrets
+
+- name: "[post-init]: Ensure secrets readable by edgestream, not world"
+  ansible.builtin.file:
+    path: /etc/edgestream/edgestream-api.secrets
+    owner: root
+    group: edgestream
+    mode: '0640'
+  when: es_secrets.stat.exists
+  no_log: true
+
+- name: "[post-init]: Read admin creds from secrets (properties format)"
+  ansible.builtin.set_fact:
+    # keep the same var names your template expects
+    EDGESTREAM_DEFAULT_ADMIN_EMAIL: >-
+      {{ lookup('ansible.builtin.ini',
+                'EDGESTREAM_DEFAULT_ADMIN_EMAIL type=properties file='
+                + (edgestream_secrets_file | default('/etc/edgestream/edgestream-api.secrets')))
+         | default('', true) }}
+    EDGESTREAM_DEFAULT_ADMIN_PASSWORD: >-
+      {{ lookup('ansible.builtin.ini',
+                'EDGESTREAM_DEFAULT_ADMIN_PASSWORD type=properties file='
+                + (edgestream_secrets_file | default('/etc/edgestream/edgestream-api.secrets')))
+         | default('', true) }}
+  when: es_secrets.stat.exists
+  no_log: true   # don’t leak secrets in logs
+
+- name: "[post-init]: Check if /root/edgestream_credentials already exists"
+  ansible.builtin.stat:
+    path: "{{ edgestream_credentials_path | default('/root/edgestream_credentials') }}"
+  register: creds_stat
+
+# --- create the file once (if values present); never overwrite or remove
+- name: "[post-init]: Create /root/edgestream_credentials from template (one-time)"
+  ansible.builtin.template:
+    src: ./templates/root/edgestream_credentials.j2
+    dest: "{{ edgestream_credentials_path | default('/root/edgestream_credentials') }}"
+    owner: root
+    group: root
+    mode: '0600'
+    force: false
+    backup: no
+  when:
+    - es_secrets.stat.exists
+    - (EDGESTREAM_DEFAULT_ADMIN_EMAIL | length) > 0
+    - (EDGESTREAM_DEFAULT_ADMIN_PASSWORD | length) > 0
+    - not creds_stat.stat.exists
+  no_log: true

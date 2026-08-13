@@ -1,0 +1,12 @@
+[Unit]
+Description=Grow Edgestream /data filesystem
+After=local-fs.target edgestream-data-disk.service
+RequiresMountsFor=/data
+
+[Service]
+Type=oneshot
+ExecStart=/opt/edgestream-core/bin/edgestream-data-disk-grow
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

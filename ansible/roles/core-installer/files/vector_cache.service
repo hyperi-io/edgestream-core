@@ -1,0 +1,13 @@
+[Unit]
+Description=Set vector buffer size
+DefaultDependencies=no
+After=network.target
+Before=vector.service zfs-expand.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/local/bin/set_vector_environment
+
+[Install]
+WantedBy=vector.service zfs-expand.service

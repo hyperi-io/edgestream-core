@@ -1,0 +1,51 @@
+#!/bin/sh
+# "edgestream-core" postinst script
+set -e
+umask 0022
+
+log()  { printf '%s\n' "edgestream-core postinst: $*"; }
+warn() { printf '%s\n' "edgestream-core postinst [warn]: $*" >&2; }
+
+# Ensure base dirs exist with proper ownership/perms
+mkdir -p /etc/edgestream
+mkdir -p /var/lib/edgestream/export
+
+# ----- Configurable variables -------------------------------------------------
+ANSIBLE="/usr/bin/ansible-playbook"
+PLAYBOOK_DIR="/opt/edgestream-core/playbooks"
+CONFIG="/var/lib/edgestream/export/settings.yml"
+POST_INIT_SERVICE="edgestream-post-init.service"
+RESIZE_DATA_DISK_SERVICE="edgestream-data-disk-grow.service"
+
+# ----- Systemd Registration ---------------------------------------------------
+# Register the one-shot service with systemd
+if [ "$1" = "configure" ]; then
+    log "Registering and enabling systemd service: $POST_INIT_SERVICE"
+    deb-systemd-helper unmask "$POST_INIT_SERVICE" >/dev/null || true
+    deb-systemd-helper preset "$POST_INIT_SERVICE" >/dev/null || true
+    deb-systemd-helper enable "$POST_INIT_SERVICE" >/dev/null || true
+
+    log "Registering and enabling systemd service: $RESIZE_DATA_DISK_SERVICE"
+    deb-systemd-helper unmask "$RESIZE_DATA_DISK_SERVICE" >/dev/null || true
+    deb-systemd-helper preset "$RESIZE_DATA_DISK_SERVICE" >/dev/null || true
+    deb-systemd-helper enable "$RESIZE_DATA_DISK_SERVICE" >/dev/null || true
+fi
+
+# ----- Upgrade-only tasks ---------------------------------------------------
+if [ -n "${2:-}" ]; then
+    log "Upgrade from $2 detected — updating system components"
+
+    if [ -x "$ANSIBLE" ] && [ -d "$PLAYBOOK_DIR" ] && [ -f "$CONFIG" ] ; then
+        log "Running edgestream-core update task..."
+        # Running with sh -c to ensure the directory context is correct
+        ( cd "$PLAYBOOK_DIR" && "$ANSIBLE" update.yml >/dev/null 2>&1 ) || \
+            warn "ansible-playbook update.yml returned non-zero; continuing"
+        log "Task completed."
+    else
+        log "Conditions for update task not met; skipping."
+    fi
+fi
+
+# DEBHELPER tag is required for automated helper scripts to be appended here
+#DEBHELPER#
+exit 0

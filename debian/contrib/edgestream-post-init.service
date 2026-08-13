@@ -1,0 +1,13 @@
+[Unit]
+Description=Edgestream Post-Initialization Tasks
+After=edgestream-api.service
+Requires=edgestream-api.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/edgestream-core/playbooks/
+ExecStart=/usr/bin/ansible-playbook /opt/edgestream-core/playbooks/post-init.yml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

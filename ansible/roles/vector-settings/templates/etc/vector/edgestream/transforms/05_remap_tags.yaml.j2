@@ -1,0 +1,36 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S   = source.settings if source is defined else {} %}
+{% set SYS = system          if system is defined else {} %}
+{% import 'common/macros.j2' as H with context %}
+
+{# simple default-on-value for system fields #}
+{% macro sysget(val, default) -%}{{ (val | default(default, true)) }}{%- endmacro %}
+
+{# safe source name; allow override for OTel splits #}
+{% set SRCNAME = (
+  SRCNAME_OVERRIDE
+  | default(source.name if source is defined and source.name is defined else 'source', true)
+) %}
+
+######################################################
+# EVENT TRANSFORMS
+######################################################
+type: remap
+inputs:
+  - {{ INPUT_OVERRIDE | default('01_' ~ (SRCNAME | default('source', true) | replace('.','_')), true) }}
+
+source: |
+  .@edgestream.hub.hostname  = "{{ sysget(SYS.hostname,'') }}"
+  .@edgestream.hub.timezone  = "{{ sysget(SYS.timezone,'UTC') }}"
+  .@edgestream.hub.org_id    = "{{ sysget(SYS.org_id,  '') }}" 
+  .@edgestream.hub.site_id   = "{{ sysget(SYS.site_id,  '') }}"
+  .@edgestream.data.id       = "{{ SRCNAME }}" 
+  .@edgestream.data.category = "{{ H.get('route_category', SRCNAME | default('')) }}"
+
+{% if source is defined and source.type == 'syslog_ng' %}
+  .host = del(.HOST)
+  . = map_keys(., recursive: true) -> |key| {
+    downcase(key)
+  }
+{% endif %}

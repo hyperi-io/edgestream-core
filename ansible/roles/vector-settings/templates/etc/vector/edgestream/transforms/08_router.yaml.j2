@@ -1,0 +1,42 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# Build an expanded source name list that includes OTel splits #}
+{% set expanded_sources = [] %}
+{% for s in (sources | default([])) if s.enabled is truthy(convert_bool=True) %}
+{% if (s.type | default('')) == 'opentelemetry' %}
+{% set _ = expanded_sources.append({'name': s.name ~ '.logs',    'orig': s}) %}
+{% set _ = expanded_sources.append({'name': s.name ~ '.metrics', 'orig': s}) %}
+{% set _ = expanded_sources.append({'name': s.name ~ '.traces',  'orig': s}) %}
+{% else %}
+{% set _ = expanded_sources.append({'name': s.name, 'orig': s}) %}
+{% endif %}
+{% endfor %}
+
+###############################
+# ROUTER FOR EVENT TYPES
+###############################
+type: route
+inputs:
+{# For each source: if it has filters, use the filter names (06_); otherwise use the source remap (05_) #}
+{% for es in expanded_sources %}
+{% set matched_transforms = [] %}
+{% for transform in (transforms | default([])) if transform.enabled is truthy(convert_bool=True) and transform.type == "filter" %}
+{% if transform.parent is iterable and es.name in transform.parent %}
+{% set _ = matched_transforms.append(transform.name) %}
+{% endif %}
+{% endfor %}
+{% if matched_transforms | length > 0 %}
+{% for tname in matched_transforms %}
+  - 06_{{ tname | replace('.', '_') }}
+{% endfor %}
+{% else %}
+  - 05_{{ es.name | replace('.', '_') }}
+{% endif %}
+{% endfor %}
+
+route:
+  no_route: .nosink == "true"
+{% for destination in (destinations | default([])) if destination.enabled is truthy(convert_bool=True) %}
+{% if destination.routes is defined and destination.routes | length > 0 %}
+  {{ destination.name }}: 'includes([{%- for route in destination.routes -%}"{{ route }}"{{ ", " if not loop.last else "" }}{%- endfor -%}], .@edgestream.data.id)'
+{% endif %}
+{% endfor %}

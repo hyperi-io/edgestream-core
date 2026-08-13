@@ -1,0 +1,119 @@
+---
+- name: "[core-installer.prep]: ufw"
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: "[core-installer.prep]: multipath-tools"
+  ansible.builtin.apt:
+    name: multipath-tools
+    state: present
+
+- name: "[core-installer.prep]: lastlog2"
+  ansible.builtin.apt:
+    name: lastlog2
+    state: present
+
+- name: "[core-installer.prep]: syslog-ng"
+  ansible.builtin.apt:
+    name:
+      - syslog-ng
+      - syslog-ng-mod-json
+    state: present
+
+- name: "[core-installer.prep]: Reset to default ufw firewall"
+  ufw:
+    state: reset
+  become: true
+
+- name: "[core-installer.prep]: Permit SSH"
+  ufw:
+    rule: allow
+    port: "{{ ssh_listen_port| default('22') }}"
+    proto: tcp
+    
+- name: "[core-installer.prep]: Permit DNS"
+  ufw:
+    rule: allow
+    port: "53"
+    proto: udp
+    direction: out
+    
+- name: "[core-installer.prep]: Enable ufw firewall"
+  ufw:
+    state: enabled
+    policy: reject
+  become: true
+
+- name: "[core-installer.prep]: Enable ufw logging"
+  ufw:
+    logging: 'on'
+
+- name: "[core-installer.prep]: Disable bogus error reporting from multipathd"
+  copy:
+    src: ./files/multipath.conf
+    dest: /etc/multipath.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+- name: "[core-installer.prep]: Reload multipathd service"
+  systemd:
+    name: multipathd.service
+    enabled: yes
+    state: reloaded
+
+- name: "[core-installer.prep]: Copy issue.net banner"
+  copy:
+    src: ./files/issue.net
+    dest: /etc/issue.net
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+- name: "[core-installer.prep]: Copy motd header"
+  copy:
+    src: ./files/00-header
+    dest: /etc/update-motd.d/00-header
+    owner: root
+    group: root
+    mode: '0755'
+    backup: no
+
+- name: "[core-installer.prep]: Install sysctl hardening and optimizations"
+  copy:
+    src: ./files/99-policy.conf
+    dest: /etc/sysctl.d/99-policy.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+    
+- name: "[core-installer.prep]: Set maximum journal size by replacing file"
+  copy:
+    src: ./files/journald.conf
+    dest: /etc/systemd/journald.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+- name: "[core-installer.prep]: Restart systemd-journald"
+  systemd:
+    name: systemd-journald.service
+    enabled: true
+    state: restarted
+    masked: no
+
+- name: "[core-installer.prep]: Set timezone to UTC"
+  shell: timedatectl set-timezone UTC
+
+- name: "[core-installer.prep]: Install InfluxDB2 server and CLI"
+  ansible.builtin.apt:
+    name:
+      - influxdb2
+      - influxdb2-cli
+    state: present
+    force_apt_get: yes

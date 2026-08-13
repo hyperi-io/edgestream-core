@@ -1,0 +1,30 @@
+---
+# tasks file
+
+- name: "[ntp-settings.ntp]: Expand ntp server template"
+  template:
+    src: ./templates/etc/chrony/sources.d/edgestream.sources.j2
+    dest: /etc/chrony/sources.d/dgestream.sources
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: chrony_settings
+
+- name: "[ntp-settings.ntp]: Restart and enable chrony service if ntp servers have changed"
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+    enabled: true
+  when:
+    - chrony_settings.changed
+
+- name: "[ntp-settings.ntp]: Remove default pool/server source files"
+  file:
+    path: "/etc/chrony/sources.d/{{ item }}"
+    state: absent
+  loop:
+    - pool.source
+    - server.source
+  loop_control:
+    label: "{{ item }}"

@@ -1,0 +1,29 @@
+[libdefaults]
+    default_realm = {{ realms[0].name }}
+
+    # MIT Kerberos options
+    kdc_timesync = 1
+    ccache_type = 4
+    forwardable = true
+    proxiable = true
+    rdns = false
+
+    # Heimdal Kerberos option
+    fcc-mit-ticketflags = true
+
+[realms]
+{% for realm in realms %}
+    {{ realm.name }} = {
+    {% for kdc in realm.kdcs.split(',') %}
+        kdc = {{ kdc.strip() }}
+    {% endfor %}
+        admin_server = {{ realm.admin_server }}
+        default_domain = {{ realm.default_domain }}
+    }
+{% endfor %}
+
+[domain_realm]
+{% for realm in realms %}
+    .{{ realm.default_domain | lower }} = {{ realm.name }}
+    {{ realm.default_domain | lower }} = {{ realm.name }}
+{% endfor %}

@@ -1,0 +1,49 @@
+- name: "[vector-settings.influx_delete]: Check if influxdb.token exists"
+  stat:
+    path: /etc/edgestream/influxdb.secrets
+  register: influxdb_token_file
+
+- name: "[vector-settings.influx_delete]: Read influxdb token from file"
+  slurp:
+    src: /etc/edgestream/influxdb.secrets
+  register: influxdb_token_raw
+  when: influxdb_token_file.stat.exists
+
+- name: "[vector-settings.influx_delete]: Set influxdb_token facts"
+  set_fact:
+    influxdb_token: "{{ influxdb_token_raw.content | b64decode | trim }}"
+  when: influxdb_token_file.stat.exists
+
+- name: "[vector-settings.influx_delete]: Check if InfluxDB is set up (org exists)"
+  command: influx org list --name edgestream
+  register: influx_org_check
+  failed_when: false
+  changed_when: false
+
+- name: "[vector-settings.influx_delete]: See if influx bucket health_metric exists"
+  command: influx bucket list --name health_metric
+  register: influx_health_metric_check
+  failed_when: false
+  changed_when: false
+  when: influx_org_check.rc == 0
+
+- name: "[vector-settings.influx_delete]: See if influx bucket vector_metric exists"
+  command: influx bucket list --name vector_metric
+  register: influx_vector_metric_check
+  failed_when: false
+  changed_when: false
+  when: influx_org_check.rc == 0
+
+- name: "[vector-settings.influx_delete]: delete influx bucket health_metric"
+  command: >
+    influx bucket delete
+    --name health_metric
+    --org edgestream
+  when: influx_health_metric_check.rc == 0
+
+- name: "[vector-settings.influx_delete]: delete influx bucket vector_metric"
+  command: >
+    influx bucket delete
+    --name vector_metric
+    --org edgestream
+  when: influx_vector_metric_check.rc == 0

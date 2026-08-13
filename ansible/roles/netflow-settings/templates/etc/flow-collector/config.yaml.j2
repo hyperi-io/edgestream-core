@@ -1,0 +1,65 @@
+{%- set netflow_sources = [] -%}
+{%- for src in sources | default([]) -%}
+  {%- if src.type | default('') | lower == 'netflow' and src.enabled | default(false) | bool -%}
+    {{ netflow_sources.append(src) }}
+  {%- endif -%}
+{%- endfor -%}
+
+{%- set netflow_enabled = netflow_sources | length > 0 -%}
+
+{%- set netflow_address = '0.0.0.0' -%}
+{%- if netflow_sources | length == 1 -%}
+  {%- set netflow_address = netflow_sources[0].settings.address | default('0.0.0.0') -%}
+{%- endif -%}
+
+{%- set raw_ports = [] -%}
+{%- for src in netflow_sources -%}
+  {%- set p_str = src.settings.ports | default('2055') | string -%}
+  {%- for p in p_str.split(',') -%}
+    {%- set clean_p = p | trim -%}
+    {%- if clean_p | regex_search('^[0-9]+$') -%}
+      {{ raw_ports.append(clean_p | int) }}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endfor -%}
+{%- set netflow_ports = raw_ports | unique | list -%}
+
+# NetFlow Daemon Configuration
+#
+# This file configures the behavior of the NetFlow Daemon, including
+# network flow collection, data forwarding, and logging settings.
+
+netflow:
+  # Enable or disable NetFlow collection
+  enabled: {{ netflow_enabled | lower }}
+
+  # IP address to bind for NetFlow packet collection
+  # "0.0.0.0" listens on all available interfaces
+  address: {{ netflow_address }}
+
+  # List of UDP ports to listen on for NetFlow traffic
+  ports: {{ netflow_ports }}
+
+forwarding:
+  # Destination address to forward parsed NetFlow data
+  address: {{ flowCollectorAddress | default('127.0.0.1') }}
+
+  # Destination port for forwarding NetFlow data
+  port: {{ flowCollectorPort | default(9000) }}
+
+  # Protocol to use for forwarding data (Supported values: "udp", "tcp", "unix_stream", "unix_datagram")
+  protocol: {{ flowCollectorProtocol | default('unix_datagram') }}
+
+  # Unix socket path (only used if protocol is "unix_stream" or "unix_datagram")
+  # Set to None or a valid path, e.g., "/tmp/netflow.sock"
+  unix_socket_path: {{ flowCollectorSocketPath | default('/data/vector/netflow.sock') }}
+
+logging:
+  # Path to the log file where NetFlow Daemon logs are stored
+  file: "/var/log/flow-collector/flow-collector.log"
+
+  # Number of log files to retain before rotating
+  keep: 5
+
+  # Maximum size (in bytes) of a log file before rotation occurs
+  maxsize: 1000000

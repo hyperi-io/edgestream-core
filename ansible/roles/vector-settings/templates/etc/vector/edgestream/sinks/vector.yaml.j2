@@ -1,0 +1,55 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = destination.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set m         = (multiplex_value | default(1, true) | int) %}
+{% set idx       = (i | default(1, true) | int) %}
+{% set dest_name = destination.name | default('dest', true) %}
+
+# Vector
+type: vector
+address: "{{ H.get('address','127.0.0.1:9000') }}"
+
+batch:
+{% if S.get('batch.max_bytes') is not none and (S.get('batch.max_bytes') | string) | trim | length > 0 %}
+  max_bytes: {{ H.getint('batch.max_bytes', 0) }}
+{% endif %}
+  max_events: {{ H.getint('batch.max_events', 1000) }}
+  timeout_secs: {{ H.getint('batch.timeout_secs', 1) }}
+
+buffer:
+  type: {{ H.get('buffer.type', 'memory') }}
+{% set _btype = S.get('buffer.type') %}
+{% if _btype is none or _btype == 'memory' %}
+  max_events: {{ H.getint('buffer.max_events', 500) }}
+{% else %}
+  max_size: {{ H.getint('buffer.max_size', 268435488) }}
+{% endif %}
+  when_full: {{ H.get('buffer.when_full', 'block') }}
+
+compression: {{ H.getbool('compression', false) }}
+
+healthcheck:
+  enabled: false
+
+inputs:
+{% if m == 1 %}
+{% if destination.routes is defined and destination.routes | length > 0 %}
+  - 08_router.{{ H.sanitize(dest_name) }}
+{% endif %}
+{% if destination.fallback is truthy(convert_bool=True) %}
+  - 08_router._unmatched
+{% endif %}
+{% elif idx < m %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}.r{{ idx }}
+{% else %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}._unmatched
+{% endif %}
+
+request:
+  concurrency: adaptive
+  retry_max_duration_secs: 600 # 10 minutes
+
+{# ---------- TLS (shared; Vector is TCP; keep default ALPN behavior) ---------- #}
+{% set MODE = 'tcp' %}
+{% include 'common/blocks/tls.j2' %}

@@ -1,0 +1,6 @@
+---
+# handlers file for o365audit
+- name: Reload Edgestream Scheduler
+  ansible.builtin.service:
+    name: edgestream-scheduler
+    state: reloaded

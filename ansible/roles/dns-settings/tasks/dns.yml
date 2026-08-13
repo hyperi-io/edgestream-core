@@ -1,0 +1,35 @@
+---
+# tasks file
+
+- name: "[dns-settings.dns]: Expand /etc/dnsmasq.d/edgestream.conf"
+  ansible.builtin.template:
+    src: ./templates/etc/dnsmasq.d/edgestream.conf.j2
+    dest: /etc/dnsmasq.d/edgestream.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+# Render resolv.conf if we have *either* local DNS entries or forwarders,
+# or just always render it if that’s what you want.
+- name: "[dns-settings.dns]: Expand /etc/resolv.conf"
+  ansible.builtin.template:
+    src: ./templates/etc/resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  when:
+    - (networks is defined) and (
+        (networks.dns | default([]) | length) > 0
+        or
+        (networks.dns_forwarders | default([]) | length) > 0
+      )
+
+# Ensure service is enabled & restarted
+- name: "[dns-settings.dns]: Ensure dnsmasq enabled and running"
+  ansible.builtin.service:
+    name: dnsmasq
+    state: restarted
+    enabled: true

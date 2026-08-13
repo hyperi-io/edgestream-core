@@ -1,0 +1,76 @@
+{% set S = destination.settings | default({}, true) %}
+{% macro get(key, default) -%}{{ S.get(key) | default(default, true) }}{%- endmacro %}
+
+# syslog-ng edgestream configuration file
+
+#### ENHANCED JSON TEMPLATE ####
+template t_edgestream_payload {
+    template("$(format-json
+        --scope rfc5424
+        --scope nv-pairs
+        --exclude DATE @timestamp=${ISODATE}
+        --omit-empty-values)\n");
+};
+
+#### SOURCES, DESTINATIONS, AND LOG PATHS ####
+
+{% set srcs = sources | default([]) %}
+{% for source in srcs %}
+  {% if source.type == "syslog_ng" %}
+    {% set settings = source.settings | default({}) %}
+    {% set name     = source.name | default('syslog') %}
+    {% set port     = (settings.port | default('514') | string | trim) %}
+    
+    {# FIX: Create the local variable with the default value #}
+    {% set fifo     = (settings.fifo | default(10000) | int) %}
+    
+    {% set tcp_on   = (settings.tcp | default(0) | string | lower in ['1','true','yes','on']) %}
+    {% set udp_on   = (settings.udp | default(0) | string | lower in ['1','true','yes','on']) %}
+
+# --- Configuration for {{ name }} ---
+source {{ name }} {
+    {% if tcp_on %}
+    network(ip(0.0.0.0) port({{ port }}) transport("tcp"));
+    {% endif %}
+    {% if udp_on %}
+    network(ip(0.0.0.0) port({{ port }}) transport("udp"));
+    {% endif %}
+};
+
+destination d_edge_syslog_{{ name }} {
+    unix-stream("/run/vector/{{ name }}.sock" 
+        template(t_edgestream_payload)
+        log-fifo-size({{ fifo }})
+    );
+};
+
+log {
+    source({{ name }});
+    destination(d_edge_syslog_{{ name }});
+    flags(flow-control);
+};
+  {% endif %}
+{% endfor %}
+
+#### INTERNAL METRICS ROUTING ####
+
+# 1. Filter to keep only the performance statistics
+filter f_syslog_stats { 
+    message("Log statistics;"); 
+};
+
+# 2. Destination: Reliable Unix Stream Socket
+destination d_edge_stats {
+    unix-stream("/run/vector/syslog_metrics.sock"
+        template(t_edgestream_payload)
+        log-fifo-size(10000)
+    );
+};
+
+# 3. Log path connecting internal logs to the metrics socket
+log {
+    source(s_src); 
+    filter(f_syslog_stats);
+    destination(d_edge_stats);
+    flags(flow-control);
+};

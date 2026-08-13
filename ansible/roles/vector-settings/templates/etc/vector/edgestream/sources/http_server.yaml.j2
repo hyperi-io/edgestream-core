@@ -1,0 +1,74 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# http_server
+type: http_server
+address: "{{ H.get('address', '0.0.0.0:8080') }}"
+
+{# ---------- auth ---------- #}
+{% set _user = S.get('auth.username') %}
+{% set _pass = S.get('auth.password') %}
+{% if (_user is not none and (_user|string)|trim|length > 0)
+   and (_pass is not none and (_pass|string)|trim|length > 0) %}
+auth:
+  username: "{{ H.get('auth.username', '') }}"
+  password: "{{ H.get('auth.password', '') }}"
+{% endif %}
+
+method: {{ (H.get('method', 'POST') | upper) }}
+path: "{{ H.get('path', '/') }}"
+path_key: "{{ H.get('path_key', 'path') }}"
+
+{# ---------- query parameters (CSV or list) ---------- #}
+{% set _qp = S.get('query_parameters') %}
+{% if _qp is not none and ( (_qp is string and _qp|trim|length > 0) or (_qp is sequence and _qp|length > 0) ) %}
+query_parameters:
+{{ H.render_list(_qp, '  ') }}
+{% endif %}
+
+response_code: {{ H.getint('response_code', 200) }}
+strict_path: {{ H.getbool('strict_path', true) }}
+
+decoding:
+  codec: {{ H.get('decoding.codec', 'json') }}
+  avro:
+{% set _as = S.get('decoding.avro.schema') %}
+{% if _as is not none and (_as|string)|trim|length > 0 %}
+    schema: {{ _as }}
+{% endif %}
+    strip_schema_id_prefix: {{ H.getbool('decoding.avro.strip_schema_id_prefix', true) }}
+  gelf:
+    lossy: {{ H.getbool('decoding.gelf.lossy', true) }}
+  influxdb:
+    lossy: {{ H.getbool('decoding.influxdb.lossy', true) }}
+  json:
+    lossy: {{ H.getbool('decoding.json.lossy', true) }}
+  native_json:
+    lossy: {{ H.getbool('decoding.native_json.lossy', true) }}
+{% set _pb_desc = S.get('decoding.protobuf.desc_file') %}
+{% set _pb_type = S.get('decoding.protobuf.message_type') %}
+{% if (_pb_desc is not none and (_pb_desc|string)|trim|length > 0)
+   or (_pb_type is not none and (_pb_type|string)|trim|length > 0) %}
+  protobuf:
+{% if _pb_desc is not none and (_pb_desc|string)|trim|length > 0 %}
+    desc_file: {{ _pb_desc }}
+{% endif %}
+{% if _pb_type is not none and (_pb_type|string)|trim|length > 0 %}
+    message_type: {{ _pb_type }}
+{% endif %}
+{% endif %}
+  syslog:
+    lossy: {{ H.getbool('decoding.syslog.lossy', true) }}
+  vrl:
+{% set _vrl_src = S.get('decoding.vrl.source') %}
+{% if _vrl_src is not none and (_vrl_src|string)|trim|length > 0 %}
+    source: |-
+{{ (_vrl_src | string) | indent(6) }}
+{% endif %}
+    timezone: {{ H.get('decoding.vrl.timezone', 'local') }}
+
+{# ---------- TLS (reuse common block; http_server is TCP so force MODE='tcp') ---------- #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

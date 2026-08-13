@@ -1,0 +1,81 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = {} %}
+{% set ns = namespace(wec=None) %}
+{% for src in (sources | default([])) %}
+{% set t = (src.type | string | lower) %}
+{% set enabled = (src.enabled | default(false) | bool) %}
+{% if ns.wec is none and t == 'wec' and enabled %}
+{% set ns.wec = src %}
+{% endif %}
+{% endfor %}
+{% if ns.wec %}
+{% set S = ns.wec.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+{% set raw_address = (H.get('address', '0.0.0.0') | string | trim) %}
+{% if ':' in raw_address %}
+{# split once from the right: "0.0.0.0:5986" -> ["0.0.0.0", "5986"] #}
+{% set addr_port = raw_address.rsplit(':', 1) %}
+{% set service_addr = addr_port[0] %}
+{% set service_port = (addr_port[1] | int) %}
+{% else %}
+{# no port in address; fall back to explicit port (or default 5986) #}
+{% set service_addr = raw_address %}
+{% set service_port = H.getint('port', 5986) %}
+{% endif %}
+---
+database:
+  path: /var/lib/pywec/pywec.db
+service:
+  address: "{{ service_addr }}"
+  port: {{ service_port }}
+  protocol: "{{ H.get('protocol', 'https') }}"
+  auth: "{{ H.get('auth', '') }}"
+  hostname: "{{ H.get('tls.server_name', system.hostname) }}"
+{% if S.get('auth') == 'tls' %}
+{# --- thumbprint resolution: settings -> certificates.certificate list --- #}
+{% set ns_thumbprint = namespace(value = H.get('thumbprint', '')) %}
+{% set ca_file = H.get('tls.ca_file', '') %}
+{# If thumbprint is empty and we have a ca_file, try to find its thumbprint in certificates #}
+{% if (not ns_thumbprint.value) and ca_file and certificates is defined %}
+{# certificates might be a mapping with key "certificate" #}
+{% if certificates is mapping %}
+{% set cert_list = certificates.certificate_authority | default([]) %}
+{% else %}
+{# fallback: assume it's already a list #}
+{% set cert_list = certificate_authority | default([]) %}
+{% endif %}
+{% for cert in cert_list %}
+{# Only handle dict-like items with filename + thumbprint #}
+{% if cert is mapping
+and cert.filename is defined
+and cert.filename == ca_file
+and cert.thumbprint is defined
+and cert.thumbprint %}
+{% set ns_thumbprint.value = cert.thumbprint %}
+{% endif %}
+{% endfor %}
+{% endif %}
+tls:
+  thumbprint: {{ ns_thumbprint.value|lower }}
+  certificate: {{ certificatePath }}/certs/{{ H.get('tls.crt_file', '') }}
+  private_key: {{ certificatePath }}/private/{{ H.get('tls.key_file', '') }}
+{% if S.get('tls.passphrase') is not none %}
+  passphrase: {{ H.get('tls.passphrase', '') }}
+{% endif %}
+{% if S.get('tls.ca_file') is not none %}
+  ca_certificate: {{ certificatePath }}/ca/{{ H.get('tls.ca_file', '') }}
+{% endif %}
+{% else %}
+kerberos:
+  keytab: "{{ H.get('keytab', '/etc/krb5.keytab') }}"
+  principal: "{{ H.get('principal', '') }}"
+{% endif %}
+output:
+  buffer:
+    disk_queue_path: "{{ H.get('disk_queue_path', '/data/wec/queue') }}"
+    max_disk_items: {{ H.getint('max_disk_items', 102400) }}
+  format: "nxlog"
+  module: "unix_stream"
+  unix_stream:
+    socket_path: "{{ H.get('unix_socket_path', '/data/vector/wec.sock') }}"
+{% endif %}

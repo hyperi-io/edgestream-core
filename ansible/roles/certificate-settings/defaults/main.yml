@@ -1,0 +1,8 @@
+# Base path for certs on the host
+certificatePath: /etc/edgestream/ssl
+
+# Remove files on disk that are not present in vars
+cert_purge_unmanaged: true
+
+# Service to notify on changes (set to "" to disable)
+cert_change_handler_service: "vector"

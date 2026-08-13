@@ -1,0 +1,26 @@
+---
+# Main task file for vector-settings role
+
+- import_tasks: influx_clean.yml
+
+- import_tasks: ufw.yml
+
+- import_tasks: certificates.yml
+
+- import_tasks: grpcwebproxy.yml
+
+- import_tasks: vector_prep.yml
+
+- import_tasks: vector_core.yml
+
+- import_tasks: vector_sources.yml
+
+- import_tasks: vector_transforms.yml
+
+- import_tasks: vector_sinks.yml
+
+- import_tasks: vector_aws.yml
+
+- import_tasks: vector_restart.yml
+
+- import_tasks: system_services.yml

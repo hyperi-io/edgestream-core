@@ -1,0 +1,4 @@
+# tasks/main.yml for NTP Settings
+
+- import_tasks: ntp.yml
+  when: (ntp_chrony_enabled | default(edge_task_default_enabled | default(true))) | bool

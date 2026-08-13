@@ -1,0 +1,4 @@
+# tasks/main.yml
+
+- import_tasks: certificates.yml
+  when: (certificate_settings | default(edge_task_default_enabled | default(true))) | bool

@@ -1,0 +1,117 @@
+---
+# Syslog → UFW application and rules (SYSLOG SETTINGS | 2.1.x)
+
+# Initialise lists
+- name: "[syslog-settings.syslog_ufw]: Init TCP/UDP lists"
+  ansible.builtin.set_fact:
+    udp_list: []
+    tcp_list: []
+
+# Build port lists from sources
+- name: "[syslog-settings.syslog_ufw]: Build lists of TCP and UDP ports from sources"
+  ansible.builtin.set_fact:
+    udp_list: >-
+      {{ udp_list +
+          ([ (item.settings.port | default('') | string | trim) ]
+            if (
+              (item.type | default('') == 'syslog_ng') and
+              (
+                ((item.settings.udp | default(0)) | string | lower) in ['1','true','yes','on']
+                or (item.settings.udp | default(0) | int == 1)
+              ) and
+              (item.settings.port | default('') | string | trim | length > 0)
+            )
+            else []
+          )
+      }}
+    tcp_list: >-
+      {{ tcp_list +
+          ([ (item.settings.port | default('') | string | trim) ]
+            if (
+              (item.type | default('') == 'syslog_ng') and
+              (
+                ((item.settings.tcp | default(0)) | string | lower) in ['1','true','yes','on']
+                or (item.settings.tcp | default(0) | int == 1)
+              ) and
+              (item.settings.port | default('') | string | trim | length > 0)
+            )
+            else []
+          )
+      }}
+  loop: "{{ sources | default([]) }}"
+
+- name: "[syslog-settings.syslog_ufw]: Dedupe/sort port lists"
+  ansible.builtin.set_fact:
+    udp_list: "{{ udp_list | unique | sort }}"
+    tcp_list: "{{ tcp_list | unique | sort }}"
+
+# Ensure UFW app file exists
+- name: "[syslog-settings.syslog_ufw]: Ensure UFW app file exists (avoid grep errors)"
+  ansible.builtin.file:
+    path: /etc/ufw/applications.d/edgestream-syslog
+    state: touch
+    owner: root
+    group: root
+    mode: '0644'
+
+# Read and delete existing app profiles
+- name: "[syslog-settings.syslog_ufw]: Read existing UFW app file"
+  ansible.builtin.slurp:
+    path: /etc/ufw/applications.d/edgestream-syslog
+  register: syslog_ufw_appfile
+  changed_when: false
+
+- name: "[syslog-settings.syslog_ufw]: Extract existing edgestream-syslog-* profiles"
+  ansible.builtin.set_fact:
+    edgestream_syslog_profiles_list: >-
+      {{
+        (syslog_ufw_appfile.content | b64decode)
+        | regex_findall('(?m)^\[(edgestream-syslog-[^\]]+)\]\s*$')
+        | unique | sort
+      }}
+
+- name: "[syslog-settings.syslog_ufw]: Remove existing UFW profiles that start with edgestream-syslog-"
+  community.general.ufw:
+    rule: allow
+    name: "{{ item }}"
+    delete: true
+  loop: "{{ edgestream_syslog_profiles_list }}"
+  when: edgestream_syslog_profiles_list | length > 0
+
+# Render new UFW app profiles
+- name: "[syslog-settings.syslog_ufw]: Expand edgestream-syslog applications.d template"
+  ansible.builtin.template:
+    src: ./templates/etc/ufw/applications.d/edgestream-syslog.j2
+    dest: /etc/ufw/applications.d/edgestream-syslog
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: ufw_application_rule
+
+- name: "[syslog-settings.syslog_ufw]: Reload UFW after deletion / template changes"
+  community.general.ufw:
+    state: reloaded
+
+# Read new profiles & allow them
+- name: "[syslog-settings.syslog_ufw]: Read profiles again after template render"
+  ansible.builtin.slurp:
+    path: /etc/ufw/applications.d/edgestream-syslog
+  register: syslog_ufw_appfile_after
+  changed_when: false
+
+- name: "[syslog-settings.syslog_ufw]: Extract profiles after template render"
+  ansible.builtin.set_fact:
+    edgestream_syslog_profiles_after_list: >-
+      {{
+        (syslog_ufw_appfile_after.content | b64decode)
+        | regex_findall('(?m)^\[(edgestream-syslog-[^\]]+)\]\s*$')
+        | unique | sort
+      }}
+
+- name: "[syslog-settings.syslog_ufw]: Allow UFW application profiles"
+  community.general.ufw:
+    rule: allow
+    name: "{{ item }}"
+  loop: "{{ edgestream_syslog_profiles_after_list }}"
+  when: edgestream_syslog_profiles_after_list | length > 0

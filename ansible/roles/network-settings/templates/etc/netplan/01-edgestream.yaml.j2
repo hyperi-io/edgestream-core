@@ -1,0 +1,81 @@
+#jinja2: lstrip_blocks: True, trim_blocks: True
+
+{% set nets = networks | default({}) %}
+{% set ip_mgmt = nets.ip_management | default([]) | list %}
+{% set static_routes = nets.static_routes | default([]) | list %}
+{% set ifaces = netplan_ifaces | default([]) | list %}
+{% set dns_list = (nets.dns | default([])) | list %}
+{% set dns_ips = dns_list | map(attribute='ip_address') | select('string') | list %}
+{% set dns_specified = (dns_ips | length) > 0 %}
+
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+{% if ip_mgmt | length > 0 %}
+{% for nic in ip_mgmt %}
+    {{ nic.iface }}:
+{% if nic.mac_address is defined and nic.mac_address | length > 0 %}
+      match:
+        macaddress: {{ nic.mac_address }}
+      set-name: {{ nic.iface }}
+{% endif %}
+{% set is_dhcp = nic.dhcp | default(false) | bool %}
+      dhcp4: {{ 'true' if is_dhcp else 'false' }}
+      dhcp6: false
+{% if not is_dhcp %}
+      addresses:
+        - {{ nic.ip_address }}/{{ (nic.ip_address ~ '/' ~ nic.netmask) | ansible.utils.ipaddr('prefix') | default('32') }}
+{% endif %}
+{% if dns_specified %}
+      nameservers:
+        addresses: [127.0.0.1]
+{% endif %}
+{% if not is_dhcp %}
+  {% set gw = nic.gateway | default('', true) | string | trim %}
+  {% set gw_present = (gw | length) > 0 %}
+  {% set is_default = nic.default | default(false) | bool %}
+
+  {% if nic.type | default('') == 'event' %}
+    {% set table_id = 100 %}
+  {% elif nic.type | default('') == 'mgmt' %}
+    {% set table_id = 101 %}
+  {% else %}
+    {% set table_id = 200 + loop.index %}
+  {% endif %}
+
+  {% set iface_routes = static_routes | selectattr('device','equalto', nic.iface) | list %}
+
+  {% if (gw_present and is_default) or (iface_routes | length > 0) %}
+      routes:
+    {% if gw_present and is_default %}
+        - to: default
+          via: {{ gw }}
+    {% endif %}
+    {% for r in iface_routes %}
+        - to: {{ r.to }}
+          via: {{ r.via }}
+    {% endfor %}
+  {% endif %}
+
+  {% if gw_present %}
+      routing-policy:
+        - from: {{ nic.ip_address }}
+          table: {{ table_id }}
+  {% endif %}
+{% endif %}
+
+{% endfor %}
+{% else %}
+{# DHCP fallback for all real interfaces #}
+{% for i in ifaces %}
+    {{ i }}:
+      dhcp4: true
+      dhcp6: true
+{% if dns_specified %}
+      nameservers:
+        addresses: [127.0.0.1]
+{% endif %}
+{% endfor %}
+{% endif %}
+

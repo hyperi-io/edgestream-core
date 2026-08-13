@@ -1,0 +1,398 @@
+---
+# tasks file for core (vpn)
+# - Installs OpenVPN + WireGuard tooling
+# - Writes configs from exported YAML
+# - Enforces stable OpenVPN interface names: tun-es-<name>
+# - Ensures dev-type tun exists for OpenVPN
+# - Sanitizes WireGuard configs (must start at [Interface], strips OpenVPN-only lines)
+# - For WireGuard: if routes[] provided, rewrite AllowedIPs to ONLY those destinations (split tunnel by dst)
+# - For WireGuard: inject "Table = off" into [Interface] to disable wg-quick auto policy routing (we manage routing separately)
+# - Writes per-profile routing YAML at /etc/edgestream/vpn/<name>.yml for edgestream-vpn-route
+# - Uses per-VPN table_id from DB/export (stable routing table ownership per VPN)
+# - Replaces config files on disk on reupload (copy overwrites when content differs)
+# - OPTIONAL cleanup: removes stale /etc/wireguard/*.conf not present in YAML
+# - Enables/starts or disables/stops units based on autoconnect
+
+- name: "[vpn-settings.vpn]: Wait for dpkg/apt locks to be released"
+  ansible.builtin.shell: |
+    set -eu
+    timeout=600
+    start=$(date +%s)
+
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+       || fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+       || fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      now=$(date +%s)
+      if [ $((now-start)) -ge $timeout ]; then
+        echo "Timed out waiting for apt/dpkg locks"
+        ps -fp "$(lsof -t /var/lib/dpkg/lock-frontend 2>/dev/null | head -n1)" 2>/dev/null || true
+        exit 1
+      fi
+      sleep 3
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - mode | default('') not in ['install', 'upgrade']
+
+- name: "[vpn-settings.vpn]: Ensure packages are installed"
+  ansible.builtin.package:
+    name:
+      - openvpn
+      - wireguard-tools
+    state: present
+
+- name: "[vpn-settings.vpn]: Ensure directories exist"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/openvpn,        mode: "0755" }
+    - { path: /etc/openvpn/client, mode: "0755" }
+    - { path: /etc/wireguard,      mode: "0700" }
+    - { path: /etc/edgestream,     mode: "0755" }
+    - { path: /etc/edgestream/vpn, mode: "0700" }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Ensure /run/openvpn-client directory is readable
+  ansible.builtin.file:
+    path: /run/openvpn-client
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# -----------------------------
+# Helper: normalize list + ensure keys exist
+# -----------------------------
+- name: "[vpn-settings.vpn]: Build render list"
+  ansible.builtin.set_fact:
+    vpn_render_list: "{{ vpn | default([]) }}"
+  changed_when: false
+
+# -----------------------------
+# OpenVPN configs (stable dev name & credentials path enforced)
+# -----------------------------
+- name: "[vpn-settings.vpn]: Write OpenVPN configs (stable dev name enforced)"
+  ansible.builtin.copy:
+    dest: "/etc/openvpn/client/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+    content: >-
+      {%- set raw = (
+            (item.data | b64decode)
+            if (item.data_encoding | default('text')) == 'base64'
+            else (item.data | default(''))
+         ) -%}
+      {%- set replaced = raw | regex_replace('(?m)^\\s*dev\\s+\\S+\\s*$', 'dev tun-es-' ~ item.name) -%}
+      {%- if replaced == raw and (raw is not search('(?m)^\\s*dev\\s+\\S+\\s*$')) -%}
+      {%- set replaced = ('dev tun-es-' ~ item.name ~ '\n') ~ raw -%}
+      {%- endif -%}
+      {%- if (replaced is not search('(?m)^\\s*dev-type\\s+tun\\s*$')) -%}
+      {%- set replaced = replaced ~ '\ndev-type tun\n' -%}
+      {%- endif -%}
+      {%- if (replaced is not search('(?m)^\\s*status-version')) -%}
+      {%- set replaced = replaced ~ '\nstatus /run/openvpn-client/status-' ~ item.name ~ '.log 5\nstatus-version 2\n' -%}
+      {%- endif -%}
+      {%- if (item.auth_username | default('') | length > 0) and (item.auth_password | default('') | length > 0) -%}
+        {%- set cred_file = '/etc/openvpn/client/' ~ item.name ~ '.credentials' -%}
+        {%- if replaced is search('(?m)^\\s*auth-user-pass') -%}
+          {%- set replaced = replaced | regex_replace('(?m)^\\s*auth-user-pass.*$', 'auth-user-pass ' ~ cred_file) -%}
+        {%- else -%}
+          {%- set replaced = replaced ~ '\nauth-user-pass ' ~ cred_file ~ '\n' -%}
+        {%- endif -%}
+      {%- endif -%}
+      {{ replaced }}
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: (item.vpn_type | default('openvpn')) == 'openvpn'
+  notify:
+    - systemd daemon-reload
+
+# -----------------------------
+# OpenVPN credentials management
+# -----------------------------
+- name: "[vpn-settings.vpn]: Write OpenVPN credential files"
+  ansible.builtin.copy:
+    dest: "/etc/openvpn/client/{{ item.name }}.credentials"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      {{ item.auth_username }}
+      {{ item.auth_password }}
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.vpn_type | default('openvpn')) == 'openvpn'
+    - (item.auth_username | default('') | length > 0)
+    - (item.auth_password | default('') | length > 0)
+
+- name: "[vpn-settings.vpn]: Remove OpenVPN credential files if credentials are empty"
+  ansible.builtin.file:
+    path: "/etc/openvpn/client/{{ item.name }}.credentials"
+    state: absent
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.vpn_type | default('openvpn')) == 'openvpn'
+    - (item.auth_username | default('') | length == 0) or (item.auth_password | default('') | length == 0)
+
+# -----------------------------
+# Per-profile routing YAML for edgestream-vpn-route
+# -----------------------------
+- name: "[vpn-settings.vpn]: Write per-profile routing file (/etc/edgestream/vpn/<name>.yml)"
+  ansible.builtin.copy:
+    dest: "/etc/edgestream/vpn/{{ item.name }}.yml"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      routing_enabled: {{ (item.routing_enabled | default(true)) | bool | lower }}
+      table_id: {{ item.table_id | default(100) }}
+      kill_switch: {{ (item.kill_switch | default(false)) | bool | lower }}
+      {% set dests = [] %}
+      {% for r in (item.routes | default([])) %}
+      {%   if r is mapping and (r.dst | default('')) %}
+      {%     set _ = dests.append(r.dst) %}
+      {%   elif r is string and r|length > 0 %}
+      {%     set _ = dests.append(r) %}
+      {%   endif %}
+      {% endfor %}
+      {% if dests | length == 0 %}
+      destinations: []
+      {% else %}
+      destinations:
+      {% for d in dests %}
+        - {{ d }}
+      {% endfor %}
+      {% endif %}
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.routes | default([])) | length > 0
+
+# -----------------------------
+# WireGuard configs (sanitized + split-tunnel AllowedIPs + Table = off)
+# - Removes any existing AllowedIPs lines
+# - If item.routes present, inserts AllowedIPs = <dst1, dst2, ...> into each [Peer] block
+# - Inserts "Table = off" into [Interface] (if not already present) to stop wg-quick from installing default-route policy rules
+# -----------------------------
+- name: "[vpn-settings.vpn]: Write WireGuard configs (sanitized)"
+  ansible.builtin.copy:
+    dest: "/etc/wireguard/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      {%- set raw = (
+            (item.data | b64decode)
+            if (item.data_encoding | default('text')) == 'base64'
+            else (item.data | default(''))
+         ) -%}
+
+      {%- set wg = raw
+            | regex_replace('(?s)^.*?(?=\\[Interface\\])', '')
+            | regex_replace('(?m)^\\s*dev\\s+.*\\r?\\n?', '')
+            | regex_replace('(?m)^\\s*dev-type\\s+.*\\r?\\n?', '')
+            | regex_replace('(?m)^\\s*DNS\\s*=.*\\r?\\n?', '')
+            | trim
+        -%}
+
+      {%- if wg is not search('(?m)^\\s*Table\\s*=') -%}
+        {%- set wg = wg | regex_replace('(?m)^\\[Interface\\]\\s*\\r?\\n', '[Interface]\\nTable = off\\n') -%}
+      {%- endif -%}
+
+      {%- set allowed = [] -%}
+      {%- for r in (item.routes | default([])) -%}
+        {%- if r is mapping and (r.dst | default('')) -%}
+          {%- set _ = allowed.append(r.dst) -%}
+        {%- elif r is string and r|length > 0 -%}
+          {%- set _ = allowed.append(r) -%}
+        {%- endif -%}
+      {%- endfor -%}
+
+      {%- if allowed | length > 0 -%}
+        {%- set wg = wg | regex_replace('(?m)^\\s*AllowedIPs\\s*=.*\\r?\\n?', '') -%}
+        {%- set wg = wg | regex_replace('(?m)^\\[Peer\\]\\s*\\r?\\n', '[Peer]\\nAllowedIPs = ' ~ (allowed | join(', ')) ~ '\\n') -%}
+      {%- endif -%}
+
+      {{ wg }}
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: (item.vpn_type | default('openvpn')) == 'wireguard'
+  notify:
+    - systemd daemon-reload
+
+# -----------------------------
+# Cleanup stale WireGuard configs not present in YAML
+# -----------------------------
+- name: "[vpn-settings.vpn]: Discover existing WireGuard configs on disk"
+  ansible.builtin.find:
+    paths: /etc/wireguard
+    patterns: "*.conf"
+    file_type: file
+  register: wg_conf_files
+
+- name: "[vpn-settings.vpn]: Build desired WireGuard config paths from YAML"
+  ansible.builtin.set_fact:
+    wg_desired_paths: >-
+      {%- set out = [] -%}
+      {%- for v in (vpn_render_list | default([])) -%}
+        {%- set t = (v.vpn_type | default(v.type | default('openvpn'))) -%}
+        {%- if t == 'wireguard' and (v.name | default('') | length) > 0 -%}
+          {%- set _ = out.append('/etc/wireguard/' ~ v.name ~ '.conf') -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  changed_when: false
+
+- name: "[vpn-settings.vpn]: Remove stale WireGuard configs not present in YAML"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ wg_conf_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - (wg_desired_paths | length) > 0
+    - item.path not in wg_desired_paths
+  notify:
+    - systemd daemon-reload
+
+# -----------------------------
+# Cleanup stale OpenVPN configs and credential files not present in YAML
+# -----------------------------
+- name: "[vpn-settings.vpn]: Discover existing OpenVPN files on disk"
+  ansible.builtin.find:
+    paths: /etc/openvpn/client
+    patterns: "*.conf,*.credentials"
+    file_type: file
+  register: ovpn_files_on_disk
+
+- name: "[vpn-settings.vpn]: Build desired OpenVPN file paths from YAML"
+  ansible.builtin.set_fact:
+    ovpn_desired_paths: >-
+      {%- set out = [] -%}
+      {%- for v in (vpn_render_list | default([])) -%}
+        {%- set t = (v.vpn_type | default(v.type | default('openvpn'))) -%}
+        {%- if t == 'openvpn' and (v.name | default('') | length) > 0 -%}
+          {%- set _ = out.append('/etc/openvpn/client/' ~ v.name ~ '.conf') -%}
+          {%- if (v.auth_username | default('') | length > 0) and (v.auth_password | default('') | length > 0) -%}
+            {%- set _ = out.append('/etc/openvpn/client/' ~ v.name ~ '.credentials') -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  changed_when: false
+
+- name: "[vpn-settings.vpn]: Remove stale OpenVPN files not present in YAML"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ ovpn_files_on_disk.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - item.path not in (ovpn_desired_paths | default([]))
+  notify:
+    - systemd daemon-reload
+
+# -----------------------------
+# Cleanup stale routing config files not present in YAML
+# -----------------------------
+- name: "[vpn-settings.vpn]: Discover existing routing config files on disk"
+  ansible.builtin.find:
+    paths: /etc/edgestream/vpn
+    patterns: "*.yml"
+    file_type: file
+  register: vpn_route_cfg_files
+
+- name: "[vpn-settings.vpn]: Build desired routing config paths from YAML"
+  ansible.builtin.set_fact:
+    vpn_route_desired_paths: >-
+      {%- set out = [] -%}
+      {%- for v in (vpn_render_list | default([])) -%}
+        {%- if (v.routes | default([])) | length > 0 and (v.name | default('') | length) > 0 -%}
+          {%- set _ = out.append('/etc/edgestream/vpn/' ~ v.name ~ '.yml') -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ out }}
+  changed_when: false
+
+- name: "[vpn-settings.vpn]: Remove stale routing config files not present in YAML"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ vpn_route_cfg_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - item.path not in (vpn_route_desired_paths | default([]))
+
+# -----------------------------
+# Enable/start based on autoconnect
+# -----------------------------
+
+# OpenVPN enable/start
+- name: "[vpn-settings.vpn]: Enable + start OpenVPN profiles with autoconnect"
+  ansible.builtin.systemd:
+    name: "openvpn-client@{{ item.name }}.service"
+    enabled: true
+    state: started
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.vpn_type | default('openvpn')) == 'openvpn'
+    - (item.autoconnect | default(false)) | bool
+
+# OpenVPN disable/stop when not autoconnect
+- name: "[vpn-settings.vpn]: Disable + stop OpenVPN profiles when autoconnect false"
+  ansible.builtin.systemd:
+    name: "openvpn-client@{{ item.name }}.service"
+    enabled: false
+    state: stopped
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.vpn_type | default('openvpn')) == 'openvpn'
+    - not ((item.autoconnect | default(false)) | bool)
+
+# WireGuard enable/start
+- name: "[vpn-settings.vpn]: Enable + start WireGuard profiles with autoconnect"
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ item.name }}.service"
+    enabled: true
+    state: started
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.vpn_type | default('openvpn')) == 'wireguard'
+    - (item.autoconnect | default(false)) | bool
+
+# WireGuard disable/stop when not autoconnect
+- name: "[vpn-settings.vpn]: Disable + stop WireGuard profiles when autoconnect false"
+  ansible.builtin.systemd:
+    name: "wg-quick@{{ item.name }}.service"
+    enabled: false
+    state: stopped
+  loop: "{{ vpn_render_list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - (item.vpn_type | default('openvpn')) == 'wireguard'
+    - not ((item.autoconnect | default(false)) | bool)

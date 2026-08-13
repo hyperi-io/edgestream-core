@@ -1,0 +1,23 @@
+---
+# tasks/certificates.yml
+
+- name: "[vector-settings.certificates]: Fix permissions on certificate directories"
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: vector
+    mode: '0750'
+  loop:
+    - "{{ certificatePath | default('/etc/edgestream/ssl') }}"
+    - "{{ certificatePath | default('/etc/edgestream/ssl') }}/ca"
+    - "{{ certificatePath | default('/etc/edgestream/ssl') }}/certs"
+    - "{{ certificatePath | default('/etc/edgestream/ssl') }}/private"
+
+- name: "[vector-settings.certificates]: Ensure edgestream directory exists"
+  file:
+    path: /etc/edgestream
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root

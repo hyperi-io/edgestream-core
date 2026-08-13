@@ -1,0 +1,5 @@
+type: remap
+inputs: [00_internal_source_host_metric]
+source: |
+    .component_id = .tags.host || "edgestream-hub"
+    .component_kind = "host"

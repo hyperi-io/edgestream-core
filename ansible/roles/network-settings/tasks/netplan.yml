@@ -1,0 +1,147 @@
+---
+# tasks/netplan.yml
+# Pure netplan (networkd) on Debian 12.
+# - Removes ifupdown configs + disables/optionally uninstalls ifupdown
+# - Disables cloud-init networking so it won’t overwrite netplan
+# - Applies netplan only outside install/upgrade
+
+- name: "[network-settings.netplan]: Gather service facts"
+  ansible.builtin.service_facts:
+
+- name: "[network-settings.netplan]: Ensure systemd-networkd enabled"
+  ansible.builtin.service:
+    name: systemd-networkd
+    state: started
+    enabled: true
+  failed_when: false
+
+- name: "[network-settings.netplan]: Ensure netplan installed"
+  ansible.builtin.apt:
+    name:
+      - netplan.io
+    state: present
+
+- name: "[network-settings.netplan]: Ensure /etc/netplan exists"
+  ansible.builtin.file:
+    path: /etc/netplan
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "[network-settings.netplan]: Gather network facts"
+  ansible.builtin.setup:
+    gather_subset:
+      - network
+
+- name: "[network-settings.netplan]: Build interface list (exclude lo)"
+  ansible.builtin.set_fact:
+    netplan_ifaces: >-
+      {{
+        (ansible_facts.interfaces | default([]))
+        | reject('equalto', 'lo')
+        | list
+      }}
+
+- name: "[network-settings.netplan]: Render netplan config"
+  ansible.builtin.template:
+    src: ./templates/etc/netplan/01-edgestream.yaml.j2
+    dest: /etc/netplan/01-edgestream.yaml
+    owner: root
+    group: root
+    mode: '0600'
+    backup: no
+  register: netplan_cfg
+  when:
+    - mode | default('') != 'upgrade'
+
+# Remove common conflicting netplan files that cloud images drop in
+- name: "[network-settings.netplan]: Remove installer/cloud-init netplan leftovers"
+  ansible.builtin.file:
+    state: absent
+    path: "{{ item }}"
+  loop:
+    - /etc/netplan/00-installer-config.yaml
+    - /etc/netplan/50-cloud-init.yaml
+  when:
+    - netplan_cfg is defined
+    - netplan_cfg.changed
+
+# Disable cloud-init networking so it won’t regenerate netplan later
+- name: "[network-settings.netplan]: Disable cloud-init networking"
+  ansible.builtin.copy:
+    dest: /etc/cloud/cloud.cfg.d/99-disable-networking.cfg
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      network: {config: disabled}
+  when:
+    - netplan_cfg is defined
+    - netplan_cfg.changed
+
+# Disable ifupdown networking service if it exists (Debian ifupdown uses "networking")
+- name: "[network-settings.netplan]: Stop + disable ifupdown networking service (if present)"
+  ansible.builtin.service:
+    name: networking
+    state: stopped
+    enabled: false
+  failed_when: false
+  when:
+    - "'networking.service' in ansible_facts.services"
+
+# Remove ifupdown configuration files to avoid confusion / accidental usage
+- name: "[network-settings.netplan]: Remove ifupdown config files"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/network/interfaces
+    - /etc/network/interfaces.d
+  when:
+    - mode | default('') != 'upgrade'
+
+# Optional but recommended: remove ifupdown package to enforce "pure netplan"
+# (netplan/networkd will handle networking; removing ifupdown prevents drift)
+- name: "[network-settings.netplan]: Remove ifupdown package (enforce pure netplan)"
+  ansible.builtin.apt:
+    name:
+      - ifupdown
+    state: absent
+    purge: yes
+    autoremove: yes
+  when:
+    - mode | default('') != 'upgrade'
+
+# Apply netplan only when not install/upgrade and only when config changed
+- name: "[network-settings.netplan]: Apply netplan (async)"
+  ansible.builtin.command: netplan apply
+  async: 160
+  poll: 0
+  register: netplan_apply_job
+  when:
+    - mode | default('') not in ['install', 'upgrade']
+    - netplan_cfg is defined
+    - netplan_cfg.changed
+
+- name: "[network-settings.netplan]: Wait for netplan apply job"
+  ansible.builtin.async_status:
+    jid: "{{ netplan_apply_job.ansible_job_id }}"
+  register: netplan_apply_result
+  until: netplan_apply_result.finished
+  retries: 60
+  delay: 2
+  when:
+    - netplan_apply_job is defined
+    - netplan_apply_job.ansible_job_id is defined
+
+# If networking changes can drop the connection, wait for it to return
+- name: "[network-settings.netplan]: Wait for connection after netplan apply"
+  ansible.builtin.wait_for_connection:
+    delay: 2
+    timeout: 180
+  when:
+    - netplan_apply_job is defined
+    - netplan_apply_job.ansible_job_id is defined
+    - netplan_apply_result is defined
+    - netplan_apply_result.finished | bool

@@ -1,0 +1,40 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set MODE = (S.get('mode') | default('tcp', true)) %}
+
+# Fluent
+type: fluent
+mode: {{ MODE }}
+
+{# address vs path depending on mode #}
+{% if MODE == 'unix' %}
+path: "{{ H.get('path', '/var/run/vector-cef.sock') }}"
+{% if S.get('socket_file_mode') is not none %}
+socket_file_mode: {{ H.getint('socket_file_mode', 438) }} {# 0666 octal -> 438 dec #}
+{% endif %}
+{% else %}
+address: "{{ H.get('address', '0.0.0.0:24224') }}"
+{% endif %}
+
+{# TCP-only knobs #}
+{% if MODE == 'tcp' %}
+{% if S.get('connection_limit') is not none and (S.get('connection_limit')|string)|length > 0 %}
+connection_limit: {{ H.getint('connection_limit', 0) }}
+{% endif %}
+keepalive:
+  time_secs: {{ H.getint('keepalive.time_secs', 7200) }}
+{% if S.get('max_connection_duration_secs') is not none %}
+max_connection_duration_secs: {{ H.getint('max_connection_duration_secs', 0) }}
+{% endif %}
+
+{% include 'common/blocks/permit_origin.j2' %}
+
+{% endif %}
+
+{% if S.get('receive_buffer_bytes') is not none and (S.get('receive_buffer_bytes') | string) | length > 0 %}
+receive_buffer_bytes: {{ H.getint('receive_buffer_bytes', 0) }}
+{% endif %}
+
+{% include 'common/blocks/tls.j2' %}

@@ -1,0 +1,91 @@
+name: edgestream-core
+
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: arc-debian-4cpu
+    container:
+      image: debian:trixie-slim
+      options: --init
+
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      DEBEMAIL: "Hyperi <edgestream-support@hyperi.io>"
+      DEBFULLNAME: "Hyperi"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # --- Setup the environment
+      - name: Setup Build Environment
+        uses: hyperi-io/edge-shared-ci/setup-deps@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+
+      # --- Check if the CI is healthy
+      - name: Lint Workflow
+        uses: hyperi-io/edge-shared-ci/workflow-lint@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+
+      - name: Dependency Review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+
+      # --- Security Scans (Pre-Build) ---
+      - name: Security - Gitleaks
+        uses: hyperi-io/edge-shared-ci/gitleaks-scan@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+        env:
+          GIT_READY: "true"
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_WORK_TREE: ${{ github.workspace }}
+
+      - name: Security - Semgrep SAST
+        uses: hyperi-io/edge-shared-ci/code-scan@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+
+      - name: Prepare Build Workspace
+        uses: hyperi-io/edge-shared-ci/prepare-env@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+
+      - name: Build Debian package
+        uses: hyperi-io/edge-shared-ci/build-deb@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+
+      # --- Security Scans (Post-Build) ---
+      - name: Security - Trivy (Package Scan)
+        uses: hyperi-io/edge-shared-ci/trivy-scan@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+        with:
+          scan-path: './dist'
+          
+      - name: Deploy Package
+        if: success()
+        uses: hyperi-io/edge-shared-ci/deploy-deb@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+        with:
+          ssh-key: ${{ secrets.EDGESTREAM_REPO_SSH_KEY }}
+          known-hosts: ${{ secrets.EDGESTREAM_KNOWN_HOSTS }}
+          repo-user: ${{ vars.EDGESTREAM_REPO_USER }}
+          repo-host: ${{ vars.EDGESTREAM_REPO_HOST }}
+          incoming-path: ${{ vars.EDGESTREAM_REPO_INCOMING_PATH }}
+          update-script: ${{ vars.EDGESTREAM_REPO_UPDATE_SCRIPT }}
+
+      - name: Sync to R2
+        if: success()
+        uses: hyperi-io/edge-shared-ci/sync-repo-r2@90d182a78adfa7d12ece511b4efe6e550fe9845e # v0.0.11
+        with:
+          ssh-key: ${{ secrets.EDGESTREAM_REPO_SSH_KEY }}
+          known-hosts: ${{ secrets.EDGESTREAM_KNOWN_HOSTS }}
+          repo-user: ${{ vars.EDGESTREAM_REPO_USER }}
+          repo-host: ${{ vars.EDGESTREAM_REPO_HOST }}
+          sync-script: ${{ vars.EDGESTREAM_REPO_SYNC_SCRIPT }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-endpoint-url: ${{ secrets.R2_ENDPOINT_URL }}

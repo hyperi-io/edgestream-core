@@ -1,0 +1,125 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set strategy = (S.get('auth.strategy') | default('access_key_id', true) | string | lower) %}
+
+# aws_s3
+type: aws_s3
+
+auth:
+{% if strategy == 'access_key_id' %}
+  access_key_id: "{{ H.get('auth.access_key_id','') }}"
+  secret_access_key: "{{ gH.et('auth.secret_access_key','') }}"
+{% if S.get('auth.session_token') is not none and (S.get('auth.session_token') | string) | length > 0 %}
+  session_token: "{{ H.get('auth.session_token','') }}"
+{% endif %}
+{% elif strategy == 'credentials_file' %}
+  credentials_file: "{{ H.get('auth.credentials_file','') }}"
+{% if S.get('auth.profile') %}
+  profile: "{{ H.get('auth.profile','default') }}"
+{% endif %}
+{% elif strategy == 'imds' %}
+  imds:
+    connect_timeout_seconds: {{ H.getint('auth.imds.connect_timeout_seconds', 1) }}
+    max_attempts: {{ H.getint('auth.imds.max_attempts', 4) }}
+    read_timeout_seconds: {{ H.getint('auth.imds.read_timeout_seconds', 1) }}
+  load_timeout_secs: {{ H.getint('auth.load_timeout_secs', 30) }}
+{% endif %}
+{%   if S.get('auth.assume_role') %}
+  assume_role: "{{ H.get('auth.assume_role','') }}"
+{%   endif %}
+{%   if S.get('auth.region') %}
+  region: "{{ H.get('auth.region','') }}"
+{%   endif %}
+
+compression: {{ H.get('compression', 'auto') }}
+
+decoding:
+  codec: {{ H.get('decoding.codec', 'bytes') }}
+  avro:
+    strip_schema_id_prefix: {{ gH.etbool('decoding.avro.strip_schema_id_prefix', true) }}
+  gelf:       
+    lossy: {{ H.getbool('decoding.gelf.lossy', true) }}
+  influxdb:
+    lossy: {{ H.getbool('decoding.influxdb.lossy', true) }}
+  json:
+    lossy: {{ H.getbool('decoding.json.lossy', true) }}
+  native_json:
+    lossy: {{ H.getbool('decoding.native_json.lossy', true) }}
+  syslog:
+    lossy: {{ H.getbool('decoding.syslog.lossy', true) }}
+  vrl:
+    timezone: {{ H.get('decoding.vrl.timezone', 'local') }}
+
+{%   if S.get('endpoint') %}
+endpoint: {{ H.get('endpoint', 'us-east-1') }}
+{%   endif %}
+region: {{ H.get('region', 'us-east-1') }}
+force_path_style: {{ H.getbool('force_path_style', true) }}
+
+sqs:
+{%   if S.get('sqs.client_concurrency') %}
+  client_concurrency: {{ H.getint('sqs.client_concurrency', 5) }}
+{%   endif %}
+{%   if S.get('sqs.connect_timeout_seconds') %}
+  connect_timeout_seconds: {{ H.getint('sqs.connect_timeout_seconds', 20) }}
+{%   endif %}
+{%   if S.get('sqs.deferred.max_age_secs') or S.get('sqs.deferred.queue_url') %}
+  deferred:
+{%   if S.get('sqs.deferred.max_age_secs') %}
+    max_age_secs: {{ H.getint('sqs.deferred.max_number_of_messages', 3600) }}
+{%   endif %}
+{%   if S.get('sqs.deferred.queue_url') %}
+    queue_url: {{ H.get('sqs.deferred.queue_url') }}
+{%   endif %}
+{%   endif %}
+  queue_url: {{ H.get('sqs.queue_url','') }}
+  delete_failed_message: {{ H.getbool('sqs.delete_failed_message', true) }}
+  delete_message: {{ H.getbool('sqs.delete_message', true) }}
+  max_number_of_messages: {{ H.getint('sqs.max_number_of_messages', 10) }}
+  poll_secs: {{ H.getint('sqs.poll_secs', 15) }}
+  visibility_timeout_secs: {{ H.getint('sqs.visibility_timeout_secs', 300) }}
+
+{% set s_to_enabled = S.get('sqs.tls_options.enabled') | default(false, true) | bool %}
+{% set has_sqs_tls = s_to_enabled 
+  and (S.get('sqs.tls_options.alpn_protocols') is not none
+  or S.get('sqs.tls_options.ca_file') is not none
+  or S.get('sqs.tls_options.crt_file') is not none
+  or S.get('sqs.tls_options.key_file') is not none
+  or (S.get('sqs.tls_options.key_pass') | default('', true) | string | length) > 0
+  or S.get('sqs.tls_options.server_name') is not none
+  or S.get('sqs.tls_options.verify_certificate') is not none
+  or S.get('sqs.tls_options.verify_hostname') is not none) %}
+{% if has_sqs_tls %}
+  tls_options:
+{%   if S.get('sqs.tls_options.alpn_protocols') %}
+    alpn_protocols: alpn_protocols: {{ H.get('sqs.tls_options.alpn_protocols') }}
+{%   endif %}
+{%   if S.get('sqs.tls_options.ca_file') %}
+    ca_file: {{ certificatePath }}/ca/{{ H.get('sqs.tls_options.ca_file') }}
+{%   endif %}
+{%   if S.get('sqs.tls_options.crt_file') %}
+    crt_file: {{ certificatePath }}/certs/{{ H.get('sqs.tls_options.crt_file') }}
+{%   endif %}
+{%   if S.get('sqs.tls_options.key_file') %}
+    key_file: {{ certificatePath }}/private/{{ H.get('sqs.tls_options.key_file') }}
+{%   endif %}
+{%   if S.get('sqs.tls_options.key_pass') is not none and (S.get('sqs.tls_options.key_pass') | string) | length > 0 %}
+    key_pass: {{ H.get('sqs.tls_options.key_pass') }}
+{%   endif %}
+{%   if S.get('sqs.tls_options.server_name') is not none %}
+    server_name: "{{ H.get('sqs.tls_options.server_name') }}"
+{%   endif %}
+{%   if S.get('sqs.tls_options.verify_certificate') is not none %}
+    verify_certificate: {{ (H.get('sqs.tls_options.verify_certificate') | bool) | lower }}
+{%   endif %}
+{%   if S.get('sqs.tls_options.verify_hostname') is not none %}
+    verify_hostname: {{ (H.get('sqs.tls_options.verify_hostname') | bool) | lower }}
+{%   endif %}
+{% endif %}
+
+{# ---------- TLS (reuse common block) ---------- #}
+{# http_client doesn't have a MODE concept; force tcp semantics for the shared TLS partial #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

@@ -1,0 +1,69 @@
+{
+  "type": "postgresql_metrics",
+  "version": "1.0.0",
+  "label": "Postgresql Metrics",
+  "settings": {
+    "base": {
+      "endpoints": {
+        "label": "Endpoints",
+        "hint": "A CSV list of PostgreSQL instances to scrape. Each endpoint must be in the Connection URI format.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "tls": {
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "exclude_databases": {
+        "label": "Exclude Databases",
+        "hint": "A CSV list of databases to match (by using POSIX Regular Expressions) against the datname column for which you don’t want to collect metrics from.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "include_databases": {
+        "label": "Include Databases",
+        "hint": "A CSV list of databases to match (by using POSIX Regular Expressions) against the datname column for which you want to collect metrics from.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "namespace": {
+        "label": "Namespace",
+        "hint": "Overrides the default namespace for the metrics emitted by the source.",
+        "type": "string",
+        "mandatory": false,
+        "default": "postgresql",
+        "cast": "string"
+      },
+      "scrape_interval_secs": {
+        "label": "Scrape Interval Secs",
+        "hint": "The interval between scrapes, in seconds.",
+        "type": "int",
+        "mandatory": false,
+        "default": 15,
+        "cast": "int"
+      }
+    }
+  }
+}

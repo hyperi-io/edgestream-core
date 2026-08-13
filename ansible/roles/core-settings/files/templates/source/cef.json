@@ -1,0 +1,163 @@
+{
+  "type": "cef",
+  "version": "1.0.0",
+  "label": "CEF",
+  "settings": {
+    "base": {
+      "address": {
+        "label": "Address",
+        "hint": "The socket address to listen for connections on, or systemd{#N} to use the Nth socket passed by systemd socket activation.",
+        "type": "regex",
+        "regex": "(^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]).){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]))(?::(\\d+))?$",
+        "mandatory": true,
+        "default": "0.0.0.0:9000",
+        "cast": "string"
+      },
+      "mode": {
+        "label": "Mode",
+        "hint": "The type of socket to use.",
+        "type": "enum",
+        "enum": [
+          "tcp",
+          "udp"
+        ],
+        "mandatory": true,
+        "default": "tcp",
+        "cast": "string"
+      }
+    },
+    "tls": {
+      "tls.enabled": {
+        "label": "TLS Enabled",
+        "hint": "Whether or not to require TLS for incoming or outgoing connections. When enabled and used for incoming connections, an identity certificate is also required. See tls.crt_file for more information.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool",
+        "requires": [
+          {
+            "key": "mode",
+            "value": "tcp"
+          }
+        ]
+      },
+      "tls.alpn_protocols": {
+        "label": "ALPN protocols",
+        "hint": "Sets the list of supported ALPN protocols. Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order that they are defined.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.verify_certificate": {
+        "label": "Verify Certificate",
+        "hint": "Enables certificate verification. For components that create a server, this requires that the client connections have a valid client certificate. For components that initiate requests, this validates that the upstream has a valid certificate.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.verify_hostname": {
+        "label": "Verify Hostname",
+        "hint": "Enables hostname verification. If enabled, the hostname used to connect to the remote host must be present in the TLS certificate presented by the remote host, either as the Common Name or as an entry in the Subject Alternative Name extension. Only relevant for outgoing connections.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "translate_custom_fields": {
+        "label": "Translate Custom Fields",
+        "hint": "Toggles translation of custom field pairs to key:value.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "max_length": {
+        "label": "Max Length",
+        "hint": "The maximum buffer size of incoming messages.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "mode",
+            "value": "udp"
+          }
+        ],
+        "cast": "int"
+      },
+      "receive_buffer_bytes": {
+        "label": "Receive Buffer",
+        "hint": "The size of the receive buffer used for each connection. Relevant when: mode = 'tcp' or mode = 'udp'",
+        "type": "int",
+        "mandatory": false,
+        "default": 65536,
+        "cast": "int"
+      },
+      "permit_origin": {
+        "label": "Permit Origin",
+        "hint": "List of allowed origin IP networks. IP addresses must be in CIDR notation.",
+        "type": "regex",
+        "regex": "^\\s*(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)/(?:3[0-2]|[12]?\\d)\\s*(?:,\\s*(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)/(?:3[0-2]|[12]?\\d)\\s*)*$",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "mode",
+            "value": "tcp"
+          }
+        ],
+        "cast": "string"
+      },
+      "timezone": {
+        "label": "Timezone",
+        "hint": "The name of the timezone to apply to timestamp conversions that do not contain an explicit time zone. The time zone name may be any name in the TZ database, or local to indicate system local time.",
+        "type": "string",
+        "mandatory": false,
+        "default": "local",
+        "cast": "string"
+      }
+    }
+  }
+}

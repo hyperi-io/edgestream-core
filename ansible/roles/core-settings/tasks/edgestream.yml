@@ -1,0 +1,41 @@
+- name: "[core-settings.edgestream]: Check if edgestream-api package is installed"
+  ansible.builtin.command: dpkg-query -W -f='${Status}' edgestream-api
+  register: edgestream_api_pkg
+  ignore_errors: true
+  changed_when: false
+  
+- name: "[core-settings.edgestream]: Ensure edgestream-api service is enabled and started"
+  ansible.builtin.service:
+    name: edgestream-api
+    state: started
+    enabled: true
+  when:
+    - edgestream_api_pkg.rc == 0
+    - "'install ok installed' in edgestream_api_pkg.stdout"
+
+- name: "[core-settings.edgestream]: Ensure edgestream-ansible-queue.service service is enabled and started"
+  ansible.builtin.service:
+    name: edgestream-ansible-queue.service
+    state: started
+    enabled: true
+  when:
+    - edgestream_api_pkg.rc == 0
+    - "'install ok installed' in edgestream_api_pkg.stdout"
+
+- name: "[core-settings.edgestream]: Ensure edgestream-ansible-queue.path service is enabled and started"
+  ansible.builtin.service:
+    name: edgestream-ansible-queue.path
+    state: started
+    enabled: true
+  when:
+    - edgestream_api_pkg.rc == 0
+    - "'install ok installed' in edgestream_api_pkg.stdout"
+
+- name: "[core-settings.edgestream]: Ensure edgestream-backup.timer service is enabled and started"
+  ansible.builtin.service:
+    name: edgestream-backup.timer
+    state: started
+    enabled: true
+  when:
+    - edgestream_api_pkg.rc == 0
+    - "'install ok installed' in edgestream_api_pkg.stdout"

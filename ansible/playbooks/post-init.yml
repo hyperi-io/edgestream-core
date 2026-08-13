@@ -1,0 +1,11 @@
+--- 
+- name: edgestream-hub
+  hosts: localhost
+  connection: local
+  
+  vars:
+    version: "2.0"
+    mode: "install"
+
+  roles:
+    - {role: "post-init", tags: ["post-init"]}

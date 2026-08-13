@@ -1,0 +1,20 @@
+[Unit]
+Description=EdgeStream Gateway OpenVPN client
+Before=systemd-user-sessions.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+WorkingDirectory=/opt/edgestream-vpn-client
+ExecStart=/opt/edgestream-vpn-client/bin/openvpn-glibc --daemon aws-vpn-client --status /run/ovpn-edgestream.state 60 --cd /opt/edgestream-vpn-client --script-security 2 --config /etc/sedgestream/vpn/{{ vpn[0].filename|default('remote.ovpn') }} --up /opt/edgestream-vpn-client/connect/vpn-client.up --down /opt/edgestream-vpn-client/connect/vpn-client.down --pull-filter ignore redirect-gateway --verb 3 --log /var/log/edgestream-vpn-client.log --writepid /var/run/ovpn-edgestream.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/ovpn-edgestream.pid
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_NET_RAW CAP_SETGID CAP_SETUID CAP_SYS_CHROOT CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+DeviceAllow=/dev/null rw
+DeviceAllow=/dev/net/tun rw
+RestartSec=60s
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

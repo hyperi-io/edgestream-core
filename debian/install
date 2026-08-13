@@ -1,0 +1,6 @@
+debian/contrib/vpn/openvpn/edgestream-routing.conf /etc/systemd/system/openvpn-client@.service.d/
+debian/contrib/vpn/wireguard/edgestream-routing.conf /etc/systemd/system/wg-quick@.service.d/
+debian/contrib/edgestream-post-init.service /lib/systemd/system/
+
+debian/contrib/resize-data-disk/edgestream-data-disk-grow /opt/edgestream-core/bin/
+debian/contrib/resize-data-disk/edgestream-data-disk-grow.service /lib/systemd/system/

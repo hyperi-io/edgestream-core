@@ -1,0 +1,13 @@
+{% if udp_list|length>0 %}
+[edgestream-syslog-udp]
+title=edgestream syslog udp
+description=edgestream syslog listening port
+ports={{ udp_list|join(",") }}/udp
+{% endif %}
+
+{% if tcp_list|length>0 %}
+[edgestream-syslog-tcp]
+title=edgestream syslog udp
+description=edgestream syslog listening port
+ports={{ tcp_list|join(",") }}/tcp
+{% endif %}

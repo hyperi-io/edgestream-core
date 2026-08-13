@@ -1,0 +1,24 @@
+---
+- name: "[vector-settings.system_services]: Check if pywec service exists"
+  command: systemctl status pywec.service
+  register: pywec_status
+  changed_when: false
+  failed_when: false
+
+- set_fact:
+    pywec_installed: "{{ pywec_status.rc == 0 }}"
+
+- name: "[vector-settings.system_services]: Check if edgestream-scheduler service exists"
+  command: systemctl status edgestream-scheduler.service
+  register: sched_status
+  changed_when: false
+  failed_when: false
+
+- set_fact:
+    scheduler_installed: "{{ sched_status.rc == 0 }}"
+
+- name: "[vector-settings.system_services]: Render service checks"
+  template:
+    src: "{{ role_path }}/templates/etc/edgestream/services.yml.j2"
+    dest: /etc/edgestream/services.yml
+    mode: '0644'

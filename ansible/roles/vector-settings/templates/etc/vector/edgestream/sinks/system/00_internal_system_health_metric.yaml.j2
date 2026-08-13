@@ -1,0 +1,19 @@
+{% set S = destination.settings | default({}, true) %}
+{% macro get(key, default) -%}{{ S.get(key) | default(default, true) }}{%- endmacro %}
+
+###############################
+# METRICS SINK
+###############################
+type: influxdb_metrics
+inputs:
+  - 00_internal_host_metric_remap
+  - 00_internal_syslog_metric_log2metric
+
+bucket: "{{ get('bucket', 'health_metric') }}"
+default_namespace: "{{ get('default_namespace', 'service') }}"
+endpoint: "{{ S.get('endpoint') | default(influxdb_endpoint, true) | default('http://127.0.0.1:8086/', true) }}"
+org: "{{ get('org', 'edgestream') }}"
+token: "{{ S.get('token') | default(influxdb_token, true) | default('11111111-1111-1111-1111-111111111111', true) }}"
+
+healthcheck:
+  enabled: false

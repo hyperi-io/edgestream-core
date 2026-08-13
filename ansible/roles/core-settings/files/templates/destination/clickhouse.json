@@ -1,0 +1,751 @@
+{
+  "type": "clickhouse",
+  "version": "1.0.0",
+  "label": "Clickhouse",
+  "settings": {
+    "base": {
+      "endpoint": {
+        "label": "Endpoint",
+        "hint": "The endpoint of the ClickHouse server.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      },
+      "table": {
+        "label": "Table",
+        "hint": "The table that data is inserted into. This parameter supports Vector's template syntax, which enables you to use dynamic per-event values.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "tls": {
+      "tls.enabled": {
+        "label": "TLS Enabled",
+        "hint": "Whether or not to require TLS for incoming or outgoing connections. When enabled and used for incoming connections, an identity certificate is also required. See tls.crt_file for more information.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "tls.alpn_protocols": {
+        "label": "ALPN protocols",
+        "hint": "Sets the list of supported ALPN protocols. Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order that they are defined.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.server_name": {
+        "label": "Server Name",
+        "hint": "Server name to use when using Server Name Indication (SNI).",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.verify_certificate": {
+        "label": "Verify Certificate",
+        "hint": "Enables certificate verification. For components that create a server, this requires that the client connections have a valid client certificate. For components that initiate requests, this validates that the upstream has a valid certificate.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.verify_hostname": {
+        "label": "Verify Hostname",
+        "hint": "Enables hostname verification. If enabled, the hostname used to connect to the remote host must be present in the TLS certificate presented by the remote host, either as the Common Name or as an entry in the Subject Alternative Name extension. Only relevant for outgoing connections.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "acknowledgements.enabled": {
+        "label": "Acknowledgements Enabled",
+        "hint": "Whether or not end-to-end acknowledgements are enabled.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "acl": {
+        "label": "ACL",
+        "hint": "Canned ACL to apply to the created objects.",
+        "type": "enum",
+        "enum": [
+          "authenticated-read",
+          "aws-exec-read",
+          "bucket-owner-full-control",
+          "bucket-owner-read",
+          "log-delivery-write",
+          "private",
+          "public-read",
+          "public-read-write"
+        ],
+        "mandatory": false,
+        "default": "private",
+        "cast": "string"
+      },
+      "auth.assume_role": {
+        "label": "Assume Role",
+        "hint": "The ARN of an IAM role to assume.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.access_key_id": {
+        "label": "Access Key ID",
+        "hint": "The AWS access key ID.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.secret_access_key": {
+        "label": "Secret Access Key",
+        "hint": "The AWS secret access key.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.session_token": {
+        "label": "Session Token",
+        "hint": "The AWS session token. Used for AWS authentication when communicating with AWS services.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.region": {
+        "label": "Auth Region",
+        "hint": "The AWS region.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "batch.max_bytes": {
+        "label": "Batch Max Bytes",
+        "hint": "The maximum size of a batch that is processed by a sink.",
+        "type": "int",
+        "mandatory": false,
+        "default": 10000000,
+        "cast": "int"
+      },
+      "batch.max_events": {
+        "label": "Batch Max Events",
+        "hint": "The maximum size of a batch before it is flushed.",
+        "type": "int",
+        "mandatory": false,
+        "default": 500,
+        "cast": "int"
+      },
+      "batch.timeout_secs": {
+        "label": "Batch Timeout Secs",
+        "hint": "The maximum age of a batch before it is flushed.",
+        "type": "int",
+        "mandatory": false,
+        "default": 300,
+        "cast": "int"
+      },
+      "buffer.type": {
+        "label": "Buffer Type",
+        "hint": "The type of buffer to use.",
+        "type": "enum",
+        "enum": [
+          "disk",
+          "memory"
+        ],
+        "mandatory": false,
+        "default": "memory",
+        "cast": "string"
+      },
+      "buffer.max_events": {
+        "label": "Buffer Max Events",
+        "hint": "The maximum number of events allowed in the buffer.",
+        "type": "int",
+        "mandatory": false,
+        "default": 500,
+        "requires": [
+          {
+            "key": "buffer.type",
+            "value": "memory"
+          }
+        ],
+        "cast": "int"
+      },
+      "buffer.max_size": {
+        "label": "Buffer Max Size",
+        "hint": "The maximum size of the buffer on disk. Must be at least ~256 megabytes (268435488 bytes).",
+        "type": "int",
+        "mandatory": false,
+        "default": 268435488,
+        "requires": [
+          {
+            "key": "buffer.type",
+            "value": "disk"
+          }
+        ],
+        "cast": "int"
+      },
+      "buffer.when_full": {
+        "label": "Buffer When Full",
+        "hint": "Event handling behavior when a buffer is full.",
+        "type": "enum",
+        "enum": [
+          "block",
+          "drop_newest"
+        ],
+        "mandatory": false,
+        "default": "block",
+        "cast": "string"
+      },
+      "compression": {
+        "label": "Compression",
+        "hint": "The compression algorithm to use.",
+        "type": "enum",
+        "enum": [
+          "gzip",
+          "none",
+          "snappy",
+          "zlib",
+          "zstd"
+        ],
+        "mandatory": false,
+        "default": "gzip",
+        "cast": "string"
+      },
+      "encoding.avro.schema": {
+        "label": "Encoding Avro Schema",
+        "hint": "The Avro schema.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "avro"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.csv.capacity": {
+        "label": "Encoding CSV Capacity",
+        "hint": "Set the capacity (in bytes) of the internal buffer used in the CSV writer. This defaults to a reasonable setting.",
+        "type": "int",
+        "mandatory": false,
+        "default": 8192,
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "int"
+      },
+      "encoding.csv.delimiter": {
+        "label": "Encoding CSV Delimiter",
+        "hint": "The field delimiter to use when writing CSV.",
+        "type": "string",
+        "mandatory": false,
+        "default": ",",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.csv.double_quote": {
+        "label": "Encoding CSV Double Quote",
+        "hint": "Enable double quote escapes. This is enabled by default, but it may be disabled. When disabled, quotes in field data are escaped instead of doubled.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "bool"
+      },
+      "encoding.csv.escape": {
+        "label": "Encoding CSV Escape",
+        "hint": "The escape character to use when writing CSV.",
+        "type": "string",
+        "mandatory": false,
+        "default": "\"",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.csv.fields": {
+        "label": "Encoding CSV Fields",
+        "hint": "Configures the fields that will be encoded, as well as the order in which they appear in the output.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.csv.quote": {
+        "label": "Encoding CSV Quote",
+        "hint": "The quote character to use when writing CSV.",
+        "type": "string",
+        "mandatory": false,
+        "default": "\"",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.csv.quote_style": {
+        "label": "Encoding CSV Quote Style",
+        "hint": "The quoting style to use when writing CSV data.",
+        "type": "enum",
+        "enum": [
+          "always",
+          "necessary",
+          "never",
+          "non_numeric"
+        ],
+        "mandatory": false,
+        "default": "necessary",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "csv"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.except_fields": {
+        "label": "Encoding Except Fields",
+        "hint": "List of fields that are excluded from the encoded event.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "encoding.json.pretty": {
+        "label": "Encoding Json Pretty",
+        "hint": "Whether to use pretty JSON formatting.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "encoding.json.metric_tag_values": {
+        "label": "Encoding Metric Tag Values",
+        "hint": "Controls how metric tag values are encoded.",
+        "type": "enum",
+        "enum": [
+          "full",
+          "single"
+        ],
+        "mandatory": false,
+        "default": "single",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "json"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.text.metric_tag_values": {
+        "label": "Encoding Metric Tag Values",
+        "hint": "Controls how metric tag values are encoded.",
+        "type": "enum",
+        "enum": [
+          "full",
+          "single"
+        ],
+        "mandatory": false,
+        "default": "single",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "text"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.only_fields": {
+        "label": "Encoding Only Fields",
+        "hint": "List of fields that are included in the encoded event.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "encoding.protobuf.desc_file": {
+        "label": "Encoding Protobuf Desc File",
+        "hint": "The path to the protobuf descriptor set file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.protobuf.message_type": {
+        "label": "Encoding Protobuf Message Type",
+        "hint": "The name of the message type to use for serializing.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "encoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "encoding.timestamp": {
+        "label": "Encoding Timestamp",
+        "hint": "Format used for timestamp fields.",
+        "type": "enum",
+        "enum": [
+          "rfc3339",
+          "unix",
+          "unix_float",
+          "unix_ms",
+          "unix_ns",
+          "unix_us"
+        ],
+        "mandatory": false,
+        "default": "rfc3339",
+        "cast": "String"
+      },
+      "endpoint": {
+        "label": "Endpoint",
+        "hint": "Custom endpoint for use with AWS-compatible services.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filename_append_uuid": {
+        "label": "Filename Append UUID",
+        "hint": "Whether or not to append a UUID v4 token to the end of the object key.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "filename_extension": {
+        "label": "Filename Extension",
+        "hint": "The filename extension to use in the object key. This overrides setting the extension based on the configured compression.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filename_time_format": {
+        "label": "Filename Time Format",
+        "hint": "The timestamp format for the time component of the object key.",
+        "type": "string",
+        "mandatory": false,
+        "default": "%s",
+        "cast": "string"
+      },
+      "framing.method": {
+        "label": "Framing Method",
+        "hint": "The framing method.",
+        "type": "enum",
+        "enum": [
+          "none",
+          "bytes",
+          "character_delimited",
+          "length_delimited",
+          "newline_delimited"
+        ],
+        "mandatory": false,
+        "default": "none",
+        "cast": "string"
+      },
+      "framing.character_delimited.delimiter": {
+        "label": "Framing Character Delimited Delimiter",
+        "hint": "The character that delimits byte sequences.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "character_delimited"
+          }
+        ],
+        "cast": "string"
+      },
+      "framing.character_delimited.max_length": {
+        "label": "Framing Character Delimited Max Length",
+        "hint": "The maximum length of the byte buffer. This length does not include the trailing delimiter.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "character_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.length_delimited.length_field_is_big_endian": {
+        "label": "Framing Length Delimited Length Field is Big Endian",
+        "hint": "Length field byte order (little or big endian).",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "bool"
+      },
+      "framing.length_delimited.length_field_length": {
+        "label": "Framing Length Delimited Length Field Length",
+        "hint": "Number of bytes representing the field length.",
+        "type": "int",
+        "mandatory": false,
+        "default": 4,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.length_delimited.length_field_offset": {
+        "label": "Framing Length Delimited Length Field Offset",
+        "hint": "Number of bytes in the header before the length field.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.length_delimited.max_frame_length": {
+        "label": "Framing Length Delimited Frame Length",
+        "hint": "Maximum frame length.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "length_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.newline_delimited.max_length": {
+        "label": "Framing Newline Delimited Max Length",
+        "hint": "The maximum length of the byte buffer.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "newline_delimited"
+          }
+        ],
+        "cast": "int"
+      },
+      "grant_full_control": {
+        "label": "Grant Full Control",
+        "hint": "Grants READ, READ_ACP, and WRITE_ACP permissions on the created objects to the named grantee.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "grant_read": {
+        "label": "Grant Read",
+        "hint": "Grants READ permissions on the created objects to the named grantee.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "grant_read_acp": {
+        "label": "Grant Read ACP",
+        "hint": "Grants READ_ACP permissions on the created objects to the named grantee.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "grant_write_acp": {
+        "label": "Grant Write ACP",
+        "hint": "Grants WRITE_ACP permissions on the created objects to the named grantee.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "proxy.enabled": {
+        "label": "Proxy Enabled",
+        "hint": "Enables proxying support.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "proxy.http": {
+        "label": "Proxy HTTP",
+        "hint": "Proxy endpoint to use when proxying HTTP traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.https": {
+        "label": "Proxy HTTPS",
+        "hint": "Proxy endpoint to use when proxying HTTPS traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.no_proxy": {
+        "label": "Proxy No Proxy",
+        "hint": "A list of hosts to avoid proxying.",
+        "type": "string",
+        "default": "",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "server_side_encryption": {
+        "label": "Server Side Encryption",
+        "hint": "AWS S3 Server-Side Encryption algorithms.",
+        "type": "enum",
+        "enum": [
+          "none",
+          "AES256",
+          "aws:kms"
+        ],
+        "mandatory": false,
+        "default": "none",
+        "cast": "String"
+      },
+      "ssekms_key_id": {
+        "label": "SSEKMS Key ID",
+        "hint": "Specifies the ID of the AWS Key Management Service (AWS KMS) symmetrical customer managed customer master key (CMK) that is used for the created objects.",
+        "type": "string",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "server_side_encryption",
+            "value": "aws:kms"
+          }
+        ],
+        "cast": "string"
+      },
+      "storage_class": {
+        "label": "Storage Class",
+        "hint": "The storage class for the created objects.",
+        "type": "enum",
+        "enum": [
+          "Standard",
+          "Deep_Archive",
+          "Express_Onezone",
+          "Glacier",
+          "Intelligent_Tiering",
+          "Onezone_IA",
+          "Reduced_Redundancy",
+          "Standard_IA"
+        ],
+        "mandatory": false,
+        "default": "Standard",
+        "cast": "String"
+      },
+      "timezone": {
+        "label": "Timezone",
+        "hint": "Timezone to use for any date specifiers in template strings. This can refer to any valid timezone as defined in the TZ database, or local which refers to the system local timezone.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "String"
+      }
+    }
+  }
+}

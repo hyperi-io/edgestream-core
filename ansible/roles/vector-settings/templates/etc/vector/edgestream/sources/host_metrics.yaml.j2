@@ -1,0 +1,137 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# Host Metrics
+type: host_metrics
+
+{# ---------------- cgroups ---------------- #}
+{% set _cg_base = S.get('cgroups.base') %}
+{% set _cg_ex = S.get('cgroups.groups.excludes') %}
+{% set _cg_in = S.get('cgroups.groups.includes') %}
+{% if (_cg_base is not none and (_cg_base|string)|trim|length > 0)
+   or (_cg_ex is sequence and _cg_ex|length > 0) or (_cg_ex is string and _cg_ex|trim|length > 0)
+   or (_cg_in is sequence and _cg_in|length > 0) or (_cg_in is string and _cg_in|trim|length > 0) %}
+cgroups:
+{% if _cg_base is not none and (_cg_base|string)|trim|length > 0 %}
+  base: {{ H.get('cgroups.base','') }}
+{% endif %}
+{% if (_cg_ex is not none and ((_cg_ex is sequence and _cg_ex|length>0) or (_cg_ex is string and _cg_ex|trim|length>0)))
+   or (_cg_in is not none and ((_cg_in is sequence and _cg_in|length>0) or (_cg_in is string and _cg_in|trim|length>0))) %}
+  groups:
+{% if _cg_ex is not none and ((_cg_ex is sequence and _cg_ex|length>0) or (_cg_ex is string and _cg_ex|trim|length>0)) %}
+    excludes:
+{{ H.render_list(_cg_ex, '      ') }}
+{% endif %}
+{% if _cg_in is not none and ((_cg_in is sequence and _cg_in|length>0) or (_cg_in is string and _cg_in|trim|length>0)) %}
+    includes:
+{{ H.render_list(_cg_in, '      ') }}
+{% endif %}
+{% endif %}
+{% endif %}
+
+{# ---------------- collectors ---------------- #}
+{% set _raw_collectors = S.get('collectors') %}
+{% if _raw_collectors is not none %}
+{% if _raw_collectors is string %}
+  {# Support original JSON input or CSV fallback #}
+  {% if '[' in _raw_collectors %}
+    {% set collectors_list = _raw_collectors | from_json %}
+  {% else %}
+    {% set collectors_list = _raw_collectors.split(',') | map('trim') | select('string') | list %}
+  {% endif %}
+{% else %}
+  {% set collectors_list = _raw_collectors %}
+{% endif %}
+
+{% if collectors_list and (collectors_list | length) > 0 %}
+collectors:
+{% for item in collectors_list %}
+  - {{ item }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{# ---------------- disk ---------------- #}
+{% set _dk_ex = S.get('disk.devices.excludes') %}
+{% set _dk_in = S.get('disk.devices.includes') %}
+{% if (_dk_ex is not none and ((_dk_ex is sequence and _dk_ex|length>0) or (_dk_ex is string and _dk_ex|trim|length>0)))
+   or (_dk_in is not none and ((_dk_in is sequence and _dk_in|length>0) or (_dk_in is string and _dk_in|trim|length>0))) %}
+disk:
+  devices:
+{% if _dk_ex is not none and ((_dk_ex is sequence and _dk_ex|length>0) or (_dk_ex is string and _dk_ex|trim|length>0)) %}
+    excludes:
+{{ H.render_list(_dk_ex, '      ') }}
+{% endif %}
+{% if _dk_in is not none and ((_dk_in is sequence and _dk_in|length>0) or (_dk_in is string and _dk_in|trim|length>0)) %}
+    includes:
+{{ H.render_list(_dk_in, '      ') }}
+{% endif %}
+{% endif %}
+
+{# ---------------- filesystem ---------------- #}
+filesystem:
+{% set _fs_dev_ex = S.get('filesystem.devices.excludes') %}
+{% set _fs_dev_in = S.get('filesystem.devices.includes') %}
+{% if (_fs_dev_ex is not none and ((_fs_dev_ex is sequence and _fs_dev_ex|length>0) or (_fs_dev_ex is string and _fs_dev_ex|trim|length>0)))
+   or (_fs_dev_in is not none and ((_fs_dev_in is sequence and _fs_dev_in|length>0) or (_fs_dev_in is string and _fs_dev_in|trim|length>0))) %}
+  devices:
+{% if _fs_dev_ex is not none and ((_fs_dev_ex is sequence and _fs_dev_ex|length>0) or (_fs_dev_ex is string and _fs_dev_ex|trim|length>0)) %}
+    excludes:
+{{ H.render_list(_fs_dev_ex, '      ') }}
+{% endif %}
+{% if _fs_dev_in is not none and ((_fs_dev_in is sequence and _fs_dev_in|length>0) or (_fs_dev_in is string and _fs_dev_in|trim|length>0)) %}
+    includes:
+{{ H.render_list(_fs_dev_in, '      ') }}
+{% endif %}
+{% endif %}
+
+{% set _fs_fs_ex = S.get('filesystem.filesystems.excludes') %}
+{% set _fs_fs_in = S.get('filesystem.filesystems.includes') %}
+{% if (_fs_fs_ex is not none and ((_fs_fs_ex is sequence and _fs_fs_ex|length>0) or (_fs_fs_ex is string and _fs_fs_ex|trim|length>0)))
+   or (_fs_fs_in is not none and ((_fs_fs_in is sequence and _fs_fs_in|length>0) or (_fs_fs_in is string and _fs_fs_in|trim|length>0))) %}
+  filesystems:
+{% if _fs_fs_ex is not none and ((_fs_fs_ex is sequence and _fs_fs_ex|length>0) or (_fs_fs_ex is string and _fs_fs_ex|trim|length>0)) %}
+    excludes:
+{{ H.render_list(_fs_fs_ex, '      ') }}
+{% endif %}
+{% if _fs_fs_in is not none and ((_fs_fs_in is sequence and _fs_fs_in|length>0) or (_fs_fs_in is string and _fs_fs_in|trim|length>0)) %}
+    includes:
+{{ H.render_list(_fs_fs_in, '      ') }}
+{% endif %}
+{% endif %}
+
+  mountpoints:
+    excludes:
+      - "/sys/kernel/debug/tracing"
+{% set _fs_mp_ex = S.get('filesystem.mountpoints.excludes') %}
+{% if _fs_mp_ex is not none and ((_fs_mp_ex is sequence and _fs_mp_ex|length>0) or (_fs_mp_ex is string and _fs_mp_ex|trim|length>0)) %}
+{{ H.render_list(_fs_mp_ex, '      ') }}
+{% endif %}
+{% set _fs_mp_in = S.get('filesystem.mountpoints.includes') %}
+{% if _fs_mp_in is not none and ((_fs_mp_in is sequence and _fs_mp_in|length>0) or (_fs_mp_in is string and _fs_mp_in|trim|length>0)) %}
+    includes:
+{{ H.render_list(_fs_mp_in, '      ') }}
+{% endif %}
+
+{# ---------------- network ---------------- #}
+{% set _nw_ex = S.get('network.devices.excludes') %}
+{% set _nw_in = S.get('network.devices.includes') %}
+{% if (_nw_ex is not none and ((_nw_ex is sequence and _nw_ex|length>0) or (_nw_ex is string and _nw_ex|trim|length>0)))
+   or (_nw_in is not none and ((_nw_in is sequence and _nw_in|length>0) or (_nw_in is string and _nw_in|trim|length>0))) %}
+network:
+  devices:
+{% if _nw_ex is not none and ((_nw_ex is sequence and _nw_ex|length>0) or (_nw_ex is string and _nw_ex|trim|length>0)) %}
+    excludes:
+{{ H.render_list(_nw_ex, '      ') }}
+{% endif %}
+{% if _nw_in is not none and ((_nw_in is sequence and _nw_in|length>0) or (_nw_in is string and _nw_in|trim|length>0)) %}
+    includes:
+{{ H.render_list(_nw_in, '      ') }}
+{% endif %}
+{% endif %}
+
+namespace: {{ H.get('namespace', 'host') }}
+
+scrape_interval_secs: {{ H.getint('scrape_interval_secs', 15) }}

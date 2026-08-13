@@ -1,0 +1,15 @@
+edge_task_default_enabled: true   # fallback if there is no explicit toggle
+
+apt_configuration_enabled: true
+auditd_configuration_enabled: true
+hostname_configuration_enabled: true
+systemd_limits_enabled: true
+timezone_configuration_enabled: true
+zfs_enabled: false
+dns_configuration_enabled: true
+netflow_configuration_enabled: true
+network_interfaces_configuration_enabled: true
+ntp_chrony_enabled: true
+syslog_rsyslog_enabled: true
+syslog_ufw_configuration_enabled: true
+client_vpn_enabled: true

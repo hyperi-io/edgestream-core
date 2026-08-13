@@ -1,0 +1,64 @@
+---
+# tasks file for o365audit
+- name: "[o365audit-installer.main]: Create o365audit group"
+  group:
+    name: o365audit
+    state: present
+        
+- name: "[o365audit-installer.main]: Create o365audit user"
+  ansible.builtin.user:
+    name: o365audit
+    shell: /usr/sbin/nologin
+    append: yes
+    group: o365audit
+
+- name: "[o365audit-installer.main]: Create default o365audit cache directory"
+  file:
+    path: /var/cache/o365audit
+    state: directory
+    owner: o365audit
+    group: root
+    mode: '0700'
+
+- name: "[o365audit-installer.main]: Create default o365audit log directory"
+  file:
+    path: /var/log/o365audit
+    state: directory
+    owner: o365audit
+    group: root
+    mode: '0700'
+
+- name: "[o365audit-installer.main]: Wait for dpkg/apt locks to be released"
+  ansible.builtin.shell: |
+    set -eu
+    # wait up to 10 minutes
+    timeout=600
+    start=$(date +%s)
+
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+       || fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+       || fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      now=$(date +%s)
+      if [ $((now-start)) -ge $timeout ]; then
+        echo "Timed out waiting for apt/dpkg locks"
+        # show who holds it (best-effort)
+        ps -fp "$(lsof -t /var/lib/dpkg/lock-frontend 2>/dev/null | head -n1)" 2>/dev/null || true
+        exit 1
+      fi
+      sleep 3
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - mode | default('') not in ['install', 'upgrade']
+    
+- name: "[o365audit-installer.main]: Install edgestream-scheduler"
+  ansible.builtin.apt:
+    name: edgestream-scheduler
+    state: present
+    
+- name: "[o365audit-installer.main]: Install o365audit"
+  ansible.builtin.apt:
+    name: office365-audit-log-collector
+    state: present

@@ -1,0 +1,17 @@
+  ######################################################
+  # SOURCE METRICS TO LOGS
+  ######################################################
+{% for source in sources | default([]) %}
+{% set enabled = (source.enabled | default(false, true)) | bool %}
+{% set S = source.settings | default({}, true) %}
+{% set metric_to_log = (S.get('metric_to_log') | default(false, true)) | bool %}
+{% if enabled and metric_to_log %}
+{% set safe_name = (source.name | default('source', true)) | replace('.','_') | replace(' ','_') %}
+  01_{{ safe_name }}:
+    type: metric_to_log
+    inputs:
+      - 01_{{ safe_name }}_pre
+    host_tag: tags.collector.host
+
+{% endif %}
+{% endfor %}

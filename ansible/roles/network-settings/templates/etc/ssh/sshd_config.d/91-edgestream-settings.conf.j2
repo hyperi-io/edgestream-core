@@ -1,0 +1,35 @@
+{% set adv = advanced | default([]) %}
+
+{# --- pull values safely --- #}
+{% set listen_port = (
+     adv | selectattr('label','equalto','ssh.listen_port')
+         | map(attribute='value')
+         | first
+         | default('') | string | trim
+) %}
+
+{% set pwd_auth_raw = adv | selectattr('label','equalto','ssh.password_authentication') | map(attribute='value') | first | default(true) %}
+{% set ga_raw       = adv | selectattr('label','equalto','ssh.google_auth')            | map(attribute='value') | first | default(false) %}
+
+{# normalize truthy/falsey: accept 1/0, true/false, yes/no, on/off, strings #}
+{% set pwd_auth   = (pwd_auth_raw|string|lower in ['1','true','yes','on']) or (pwd_auth_raw|bool) %}
+{% set google_2fa = (ga_raw|string|lower in ['1','true','yes','on']) or (ga_raw|bool) %}
+
+{# Port: only emit if provided #}
+{% if listen_port %}
+Port {{ listen_port }}
+{% endif %}
+
+{% if pwd_auth %}
+PasswordAuthentication yes
+{% else %}
+PasswordAuthentication no
+{% endif %}
+
+# Required for Google Authenticator
+{% if google_2fa %}
+KbdInteractiveAuthentication yes
+AuthenticationMethods publickey,keyboard-interactive
+{% else %}
+KbdInteractiveAuthentication no
+{% endif %}

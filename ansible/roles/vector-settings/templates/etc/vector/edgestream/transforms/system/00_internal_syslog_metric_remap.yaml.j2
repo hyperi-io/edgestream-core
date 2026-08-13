@@ -1,0 +1,42 @@
+type: remap
+inputs: [00_internal_source_syslog_metric]
+source: |
+  if !starts_with(string!(.MESSAGE), "Log statistics;") {
+    abort
+  }
+
+  pattern = r'(?P<kind>dropped|processed)=\'dst\.(?P<driver>[^\(]+)\((?P<name>[^#,\)]+).*?\)=(?P<val>\d+)\''
+  matches = parse_regex_all(.MESSAGE, pattern) ?? []
+
+  events = []
+
+  for_each(matches) -> |index, m| {
+    name = to_string(m.name)
+    if starts_with(name, "d_edge_syslog_") {
+      val = to_int(m.val) ?? 0
+      
+      # Strip the prefix 'd_edge_syslog_'
+      clean_name = replace(name, r'^d_edge_syslog_', "")
+
+      new_event = {
+        "host": .HOST || "edgestream-hub",
+        "timestamp": .@timestamp,
+        "name": clean_name,
+        "origin": m.driver,
+        "submitted": 0,
+        "disallowed": 0,
+        "lost_events": 0
+      }
+
+      if m.kind == "processed" {
+        new_event.submitted = val
+      } else {
+        new_event.disallowed = val
+        new_event.lost_events = val
+      }
+
+      events = push(events, new_event)
+    }
+  }
+
+  . = events

@@ -1,0 +1,13 @@
+{% set settings = item.settings | default({}) %}
+command:
+  interval: "{{ settings.poll_schedule | default('5m') }}"
+  path: "/usr/sbin/office_audit_log_collector"
+  args:
+    - "--tenant-id"
+    - "{{ settings.get('tenant.id', '') | string | trim }}"
+    - "--client-id"
+    - "{{ settings.get('client.id', '') | string | trim }}"
+    - "--secret-key"
+    - "{{ settings.get('secret.key', '') | string | trim }}"
+    - "--config"
+    - "/etc/office365-audit-log-collector/{{ item.name | default('unnamed') }}.config.yml"

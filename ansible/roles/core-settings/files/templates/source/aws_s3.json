@@ -1,0 +1,699 @@
+{
+  "type": "aws_s3",
+  "version": "1.0.0",
+  "label": "AWS S3",
+  "settings": {
+    "base": {
+      "sqs.queue_url": {
+        "label": "SQS Queue URL",
+        "hint": "The URL of the SQS queue to poll for bucket notifications.",
+        "type": "string",
+        "mandatory": true,
+        "default": "https://sqs.us-east-1.amazonaws.com",
+        "cast": "string"
+      },
+      "region": {
+        "label": "Region",
+        "hint": "The AWS region of the target service.",
+        "type": "enum",
+        "enum": [
+          "af-south-1",
+          "ap-east-1",
+          "ap-northeast-1",
+          "ap-northeast-2",
+          "ap-northeast-3",
+          "ap-south-1",
+          "ap-south-2",
+          "ap-southeast-1",
+          "ap-southeast-2",
+          "ap-southeast-3",
+          "ap-southeast-4",
+          "ap-southeast-5",
+          "ap-southeast-7",
+          "ca-central-1",
+          "ca-west-1",
+          "eu-central-1",
+          "eu-central-2",
+          "eu-north-1",
+          "eu-south-1",
+          "eu-south-2",
+          "eu-west-1",
+          "eu-west-2",
+          "eu-west-3",
+          "il-central-1",
+          "me-central-1",
+          "me-south-1",
+          "mx-central-1",
+          "sa-east-1",
+          "us-east-1",
+          "us-east-2",
+          "us-west-1",
+          "us-west-2"
+        ],
+        "mandatory": true,
+        "default": "bytes",
+        "cast": "string"
+      },
+      "auth.strategy": {
+        "label": "Auth Strategy",
+        "hint": "The authentication strategy to use.",
+        "type": "enum",
+        "enum": [
+          "access_key_id",
+          "credentials_file",
+          "imds"
+        ],
+        "mandatory": true,
+        "default": "access_key_id",
+        "cast": "string"
+      },
+      "auth.access_key_id": {
+        "label": "Auth Access Key ID",
+        "hint": "The AWS access key ID.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "access_key_id"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.secret_access_key": {
+        "label": "Auth Secret Access Key",
+        "hint": "The AWS secret access key.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "access_key_id"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.credentials_file": {
+        "label": "Auth Credentials File",
+        "hint": "Path to the credentials file.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "credentials_file"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.codec": {
+        "label": "Decoding Codec",
+        "hint": "The codec to use for decoding events.",
+        "type": "enum",
+        "enum": [
+          "avro",
+          "bytes",
+          "gelf",
+          "influxdb",
+          "json",
+          "native",
+          "native_json",
+          "protobuf",
+          "syslog",
+          "vrl"
+        ],
+        "mandatory": true,
+        "default": "bytes",
+        "cast": "string"
+      }
+    },
+    "tls": {
+      "tls.enabled": {
+        "label": "TLS Enabled",
+        "hint": "Whether or not to require TLS for incoming or outgoing connections.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "tls.alpn_protocols": {
+        "label": "ALPN protocols",
+        "hint": "List of supported ALPN protocols.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.verify_certificate": {
+        "label": "Verify Certificate",
+        "hint": "Enable certificate verification.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.verify_hostname": {
+        "label": "Verify Hostname",
+        "hint": "Enable hostname verification.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.assume_role": {
+        "label": "Auth Assume Role",
+        "hint": "The ARN of an IAM role to assume.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.external_id": {
+        "label": "Auth External ID",
+        "hint": "Unique external ID used with assume role.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.imds.connect_timeout_seconds": {
+        "label": "Auth IMDS Connect Timeout Seconds",
+        "hint": "Connect timeout for IMDS.",
+        "type": "int",
+        "mandatory": false,
+        "default": 1,
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "imds"
+          }
+        ],
+        "cast": "int"
+      },
+      "auth.imds.max_attempts": {
+        "label": "Auth IMDS Max Attempts",
+        "hint": "Number of IMDS retries.",
+        "type": "int",
+        "mandatory": false,
+        "default": 4,
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "imds"
+          }
+        ],
+        "cast": "int"
+      },
+      "auth.load_timeout_secs": {
+        "label": "Auth Load Timeout Secs",
+        "hint": "Timeout for loading any credentials (secs).",
+        "type": "int",
+        "mandatory": false,
+        "default": 30,
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "imds"
+          }
+        ],
+        "cast": "int"
+      },
+      "auth.region": {
+        "label": "Auth Region",
+        "hint": "The AWS region.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "auth.session_name": {
+        "label": "Auth Session Name",
+        "hint": "Role session name for assumed role.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "compression": {
+        "label": "Compression",
+        "hint": "Compression algorithm.",
+        "type": "enum",
+        "enum": [
+          "auto",
+          "gzip",
+          "none",
+          "zstd"
+        ],
+        "mandatory": false,
+        "default": "auto"
+      },
+      "decoding.avro.schema": {
+        "label": "Decoding Avro Schema",
+        "hint": "The Avro schema definition.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "avro"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.avro.strip_schema_id_prefix": {
+        "label": "Strip Avro Schema ID Prefix",
+        "hint": "Strip schema ID prefix for Avro datum.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "avro"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.gelf.lossy": {
+        "label": "Decoding Gelf Lossy",
+        "hint": "Replace invalid UTF-8 instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "gelf"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.influxdb.lossy": {
+        "label": "Decoding Influxdb Lossy",
+        "hint": "Replace invalid UTF-8 instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "influxdb"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.json.lossy": {
+        "label": "Decoding Json Lossy",
+        "hint": "Replace invalid UTF-8 instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.native_json.lossy": {
+        "label": "Decoding Native Json Lossy",
+        "hint": "Replace invalid UTF-8 instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "native_json"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.protobuf.desc_file": {
+        "label": "Decoding Protobuf Desc File",
+        "hint": "Path to desc file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.protobuf.message_type": {
+        "label": "Decoding Protobuf Message Type",
+        "hint": "Message type for desc file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "protobuf"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.syslog.lossy": {
+        "label": "Decoding Syslog Lossy",
+        "hint": "Replace invalid UTF-8 instead of failing.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "syslog"
+          }
+        ],
+        "cast": "bool"
+      },
+      "decoding.vrl.source": {
+        "label": "Decoding Vrl Source",
+        "hint": "VRL program to execute for each event.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "vrl"
+          }
+        ],
+        "cast": "string"
+      },
+      "decoding.vrl.timezone": {
+        "label": "Decoding Vrl Timezone",
+        "hint": "Timezone name for timestamp conversions.",
+        "type": "string",
+        "mandatory": false,
+        "default": "local",
+        "requires": [
+          {
+            "key": "decoding.codec",
+            "value": "vrl"
+          }
+        ],
+        "cast": "string"
+      },
+      "endpoint": {
+        "label": "Endpoint",
+        "hint": "Custom endpoint for AWS-compatible services.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "force_path_style": {
+        "label": "Force Path Style",
+        "hint": "Use path-style addressing instead of virtual-hosted.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true
+      },
+      "multiline.condition_pattern": {
+        "label": "Multiline Condition Pattern",
+        "hint": "Regex that determines whether more lines should be read.",
+        "type": "string",
+        "mandatory": false,
+        "default": ""
+      },
+      "multiline.mode": {
+        "label": "Multiline Mode",
+        "hint": "Aggregation mode; must be used with condition_pattern.",
+        "type": "enum",
+        "enum": [
+          "continue_past",
+          "continue_through",
+          "halt_before",
+          "halt_with"
+        ],
+        "mandatory": false,
+        "default": "continue_past",
+        "cast": "string"
+      },
+      "multiline.start_pattern": {
+        "label": "Multiline Start Pattern",
+        "hint": "Regex that matches the start of a new message.",
+        "type": "string",
+        "mandatory": false,
+        "default": ""
+      },
+      "multiline.timeout_ms": {
+        "label": "Multiline Timeout MS",
+        "hint": "Max time to wait for next additional line (ms).",
+        "type": "int",
+        "mandatory": false,
+        "default": 600000
+      },
+      "proxy.enabled": {
+        "label": "Proxy Enabled",
+        "hint": "Enable proxying support.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "proxy.http": {
+        "label": "Proxy HTTP",
+        "hint": "Proxy endpoint for HTTP traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.https": {
+        "label": "Proxy HTTPS",
+        "hint": "Proxy endpoint for HTTPS traffic.",
+        "type": "regex",
+        "regex": "^(([^:\\/\\s]+):\\/?\\/?([^\\/\\s@]*@)?([^\\/@:]*)?:?(\\d+)?)?(\\/[^?]*)?(\\?([^#]*))?(#[\\s\\S]*)?$",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "proxy.no_proxy": {
+        "label": "Proxy No Proxy",
+        "hint": "Comma-separated list of hosts to avoid proxying.",
+        "type": "string",
+        "default": "",
+        "mandatory": false,
+        "cast": "string"
+      },
+      "sqs.client_concurrency": {
+        "label": "SQS Client Concurrency",
+        "hint": "Number of concurrent polling tasks.",
+        "type": "int",
+        "mandatory": false,
+        "cast": "int"
+      },
+      "sqs.connect_timeout_seconds": {
+        "label": "SQS Connect Timeout",
+        "hint": "Connection timeout for AWS requests.",
+        "type": "int",
+        "mandatory": false
+      },
+      "sqs.delete_failed_message": {
+        "label": "SQS Delete Failed Message",
+        "hint": "Delete non-retryable messages after rejection by sink.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "sqs.delete_message": {
+        "label": "SQS Delete Message",
+        "hint": "Delete the message once processed.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "sqs.max_number_of_messages": {
+        "label": "SQS Max Number of Messages",
+        "hint": "Maximum number of messages to poll in a batch.",
+        "type": "int",
+        "mandatory": true,
+        "default": 10,
+        "cast": "int"
+      },
+      "sqs.operation_timeout_seconds": {
+        "label": "SQS Operation Timeout",
+        "hint": "Operation timeout for AWS requests.",
+        "type": "int",
+        "mandatory": false
+      },
+      "sqs.poll_secs": {
+        "label": "SQS Poll Secs",
+        "hint": "Seconds to wait while polling for new messages.",
+        "type": "int",
+        "mandatory": true,
+        "default": 15,
+        "cast": "int"
+      },
+      "sqs.read_timeout_seconds": {
+        "label": "SQS Read Timeout",
+        "hint": "Read timeout for AWS requests.",
+        "type": "int",
+        "mandatory": false
+      },
+      "sqs.tls_options.enabled": {
+        "label": "SQS TLS Enabled",
+        "hint": "Require TLS for outgoing connections to SQS.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "sqs.tls_options.alpn_protocols": {
+        "label": "SQS TLS ALPN protocols",
+        "hint": "List of supported ALPN protocols for SQS client.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "sqs.tls_options.server_name": {
+        "label": "SQS TLS Server Name",
+        "hint": "Server name for SNI.",
+        "type": "string",
+        "mandatory": false,
+        "default": ""
+      },
+      "sqs.tls_options.verify_certificate": {
+        "label": "SQS TLS Verify Certificate",
+        "hint": "Enable certificate verification for SQS.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "sqs.tls_options.verify_hostname": {
+        "label": "SQS TLS Verify Hostname",
+        "hint": "Enable hostname verification for SQS.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "sqs.tls_options.ca_file": {
+        "label": "SQS TLS Certificate Authority File",
+        "hint": "Additional CA certificate file for SQS.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "sqs.tls_options.crt_file": {
+        "label": "SQS TLS Certificate File",
+        "hint": "Client certificate file for SQS.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "sqs.tls_options.key_file": {
+        "label": "SQS TLS Private Key",
+        "hint": "Client private key for SQS.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "sqs.tls_options.key_pass": {
+        "label": "SQS TLS Private Key Passphrase",
+        "hint": "Passphrase to unlock the SQS key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    }
+  },
+  "requirements": [
+    {
+      "when": [
+        {
+          "key": "auth.strategy",
+          "operator": "eq",
+          "value": "credentials_file"
+        }
+      ],
+      "require": [
+        "auth.credentials_file"
+      ]
+    },
+    {
+      "when": [
+        {
+          "key": "auth.strategy",
+          "operator": "eq",
+          "value": "access_key_id"
+        }
+      ],
+      "require": [
+        "auth.access_key_id",
+        "auth.secret_access_key"
+      ]
+    }
+  ],
+  "clearOnChange": {
+    "auth.strategy": {
+      "credentials_file": [
+        "auth.access_key_id",
+        "auth.secret_access_key"
+      ],
+      "access_key_id": [
+        "auth.credentials_file"
+      ]
+    }
+  }
+}

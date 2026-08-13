@@ -1,0 +1,14 @@
+---
+# Stop the zed service, causes massive issues with zfs
+
+- name: "[core-settings.zfs]: Gather service facts"
+  ansible.builtin.service_facts:
+
+- name: "[core-settings.zfs]: Stop zfs-zed service"
+  ansible.builtin.service:
+    name: zfs-zed
+    state: stopped
+    enabled: false
+  when:
+    - "'zfs-zed.service' in ansible_facts.services"
+  ignore_errors: true

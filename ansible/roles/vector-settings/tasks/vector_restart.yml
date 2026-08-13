@@ -1,0 +1,49 @@
+---
+# VECTOR SERVICE RESTART
+
+- name: "[vector-settings.vector_restart]: Stop vector service"
+  ansible.builtin.service:
+    name: vector
+    state: stopped
+    enabled: true
+  when:
+    - vector_settings_3_1_39 is not defined or vector_settings_3_1_39 | bool
+
+# Optional pause, just in case Vector is slow to shut down
+- name: "[vector-settings.vector_restart]: Wait briefly after stopping vector"
+  ansible.builtin.pause:
+    seconds: 2
+  when:
+    - vector_settings_3_1_39 is not defined or vector_settings_3_1_39 | bool
+
+# Derive the WEC unix socket path from the enabled WEC source (if any)
+- name: "[vector-settings.vector_restart]: Compute WEC unix socket path"
+  ansible.builtin.set_fact:
+    wec_unix_socket_path: >-
+      {{
+        (
+          sources
+          | default([])
+          | selectattr('type', 'equalto', 'wec')
+          | selectattr('enabled', 'equalto', true)
+          | list
+        )[0].settings.unix_socket_path
+        | default('/data/vector/wec.sock', true)
+      }}
+  when:
+    - vector_settings_3_1_39 is not defined or vector_settings_3_1_39 | bool
+
+- name: "[vector-settings.vector_restart]: Remove stale WEC unix socket if present"
+  ansible.builtin.file:
+    path: "{{ wec_unix_socket_path | default('/data/vector/wec.sock') }}"
+    state: absent
+  when:
+    - vector_settings_3_1_39 is not defined or vector_settings_3_1_39 | bool
+
+- name: "[vector-settings.vector_restart]: Start vector service"
+  ansible.builtin.service:
+    name: vector
+    state: started
+    enabled: true
+  when:
+    - vector_settings_3_1_39 is not defined or vector_settings_3_1_39 | bool

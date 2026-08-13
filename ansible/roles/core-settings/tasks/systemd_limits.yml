@@ -1,0 +1,8 @@
+---
+# Increase fileno for systemd services
+
+- name: "[core-settings.systemd_limits]: Increase fileno for systemd services"
+  replace:
+    path: /etc/systemd/system.conf
+    regexp: '^#DefaultLimitNOFILE=.*$'
+    replace: 'DefaultLimitNOFILE=1048576:1048576'

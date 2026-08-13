@@ -1,0 +1,74 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set MODE = (S.get('mode') | default('tcp', true)) %}
+
+# CEF
+type: socket
+mode: {{ MODE }}
+
+{# address vs path depending on mode #}
+{% if MODE in ['unix_datagram','unix_stream'] %}
+path: "{{ H.get('path', '/var/run/vector-cef.sock') }}"
+{% if S.get('socket_file_mode') is not none %}
+socket_file_mode: {{ H.getint('socket_file_mode', 438) }} {# 0666 octal -> 438 dec #}
+{% endif %}
+{% else %}
+address: "{{ H.get('address', '0.0.0.0:514') }}"
+{% endif %}
+
+{# TCP-only knobs #}
+{% if MODE == 'tcp' %}
+{% if S.get('connection_limit') is not none and (S.get('connection_limit')|string)|length > 0 %}
+connection_limit: {{ H.getint('connection_limit', 0) }}
+{% endif %}
+keepalive:
+  time_secs: {{ H.getint('keepalive.time_secs', 7200) }}
+{% if S.get('max_connection_duration_secs') is not none %}
+max_connection_duration_secs: {{ H.getint('max_connection_duration_secs', 0) }}
+{% endif %}
+{% if S.get('shutdown_timeout_secs') is not none %}
+shutdown_timeout_secs: {{ H.getint('shutdown_timeout_secs', 30) }}
+{% endif %}
+
+{% include 'common/blocks/permit_origin.j2' %}
+
+{% endif %}
+
+{# UDP-only knobs #}
+{% if MODE == 'udp' %}
+{% if S.get('multicast_groups') is not none %}
+multicast_groups:
+{{ H.render_list(S.get('multicast_groups'), '  ') }}
+{% endif %}
+{% if S.get('max_length') is not none %}
+max_length: {{ H.getint('max_length', 102400) }}
+{% endif %}
+{% endif %}
+
+{# TCP or UDP #}
+{% if MODE in ['tcp','udp'] and S.get('receive_buffer_bytes') is not none %}
+receive_buffer_bytes: {{ H.getint('receive_buffer_bytes', 0) }}
+{% endif %}
+
+{# optional peer metadata keys #}
+{% if S.get('host_key') is not none %}
+host_key: "{{ H.get('host_key', '') }}"
+{% endif %}
+{% if MODE in ['tcp','udp'] and S.get('port_key') is not none %}
+port_key: "{{ H.get('port_key', 'port') }}"
+{% endif %}
+
+{# --- CEF decoding --- #}
+{# We always parse CEF: use VRL decoder and parse the incoming string payload. #}
+decoding:
+  codec: vrl
+  vrl:
+    source: |-
+      . = parse_cef!(string!(.),
+        translate_custom_fields: {{ H.getbool('translate_custom_fields', false) }}
+      )
+    timezone: {{ H.get('timezone', 'local') }}
+
+{% include 'common/blocks/tls.j2' %}

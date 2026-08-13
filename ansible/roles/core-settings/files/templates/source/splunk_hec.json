@@ -1,0 +1,126 @@
+{
+  "type": "splunk_hec",
+  "version": "1.0.0",
+  "label": "Splunk HEC",
+  "settings": {
+    "base": {
+      "address": {
+        "label": "Address",
+        "hint": "The socket address to listen for connections on, or systemd{#N} to use the Nth socket passed by systemd socket activation.",
+        "type": "regex",
+        "regex": "(^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]).){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]))(?::(\\d+))?$",
+        "mandatory": true,
+        "default": "0.0.0.0:9000",
+        "cast": "string"
+      },
+      "valid_tokens": {
+        "label": "Valid Tokens",
+        "hint": "A CSV list of valid HEC tokens.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "store_hec_token": {
+        "label": "Store HEC Token",
+        "hint": "Whether or not to forward the Splunk HEC authentication token with events.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      }
+    },
+    "tls": {
+      "tls.enabled": {
+        "label": "TLS Enabled",
+        "hint": "Whether or not to require TLS for incoming or outgoing connections. When enabled and used for incoming connections, an identity certificate is also required. See tls.crt_file for more information.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "tls.alpn_protocols": {
+        "label": "ALPN protocols",
+        "hint": "Sets the list of supported ALPN protocols. Declare the supported ALPN protocols, which are used during negotiation with peer. They are prioritized in the order that they are defined.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.verify_certificate": {
+        "label": "Verify Certificate",
+        "hint": "Enables certificate verification. For components that create a server, this requires that the client connections have a valid client certificate. For components that initiate requests, this validates that the upstream has a valid certificate.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.verify_hostname": {
+        "label": "Verify Hostname",
+        "hint": "Enables hostname verification. If enabled, the hostname used to connect to the remote host must be present in the TLS certificate presented by the remote host, either as the Common Name or as an entry in the Subject Alternative Name extension. Only relevant for outgoing connections.",
+        "type": "bool",
+        "mandatory": false,
+        "default": true,
+        "cast": "bool"
+      },
+      "tls.ca_file": {
+        "label": "Certificate Authority File",
+        "hint": "Absolute path to an additional CA certificate file.",
+        "type": "file_ca_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.crt_file": {
+        "label": "Certificate File",
+        "hint": "Absolute path to a certificate file used to identify this server.",
+        "type": "file_crt_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_file": {
+        "label": "Private Key",
+        "hint": "Absolute path to a private key file used to identify this server.",
+        "type": "file_key_file",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "tls.key_pass": {
+        "label": "Private Key Passphrase",
+        "hint": "Passphrase used to unlock the encrypted key file.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    },
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "keepalive.max_connection_age_jitter_factor": {
+        "label": "Keepalive Max Connection Age Jitter Factor",
+        "hint": "The factor by which to jitter the max_connection_age_secs value. A value of 0.1 means that the actual duration will be between 90% and 110% of the specified maximum duration.",
+        "type": "int",
+        "mandatory": false,
+        "default": 0.1,
+        "cast": "int"
+      },
+      "keepalive.max_connection_age_secs": {
+        "label": "Keepalive Max Connection Age Secs",
+        "hint": "The maximum amount of time a connection may exist before it is closed by sending a Connection: close header on the HTTP response. Set this to a large value like 100000000 to “disable” this feature.",
+        "type": "int",
+        "mandatory": false,
+        "default": 300,
+        "cast": "int"
+      }
+    }
+  }
+}

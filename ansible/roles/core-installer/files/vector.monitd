@@ -1,0 +1,3 @@
+check process vector matching "vector"
+    start program = "/bin/systemctl start vector"
+    stop program = "/bin/systemctl stop vector"

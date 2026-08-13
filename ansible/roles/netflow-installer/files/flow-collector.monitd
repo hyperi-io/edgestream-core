@@ -1,0 +1,3 @@
+check process flow-collector matching "flow-collector"
+    start program = "/bin/systemctl start flow-collector"
+    stop program = "/bin/systemctl stop flow-collector"

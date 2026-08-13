@@ -1,0 +1,93 @@
+---
+# Nginx configuration (4.2.x)
+
+# ----------------------------------------
+# 1.6.1 – Render main nginx reverse-proxy site
+# ----------------------------------------
+- name: "[network-settings.nginx]: Expand nginx revproxy template"
+  template:
+    src: ./templates/etc/nginx/sites-available/edgestream-revproxy.j2
+    dest: /etc/nginx/sites-available/edgestream-revproxy
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: nginx_revproxy_template
+
+# ----------------------------------------
+# 1.6.2 – Enable the site
+# ----------------------------------------
+- name: "[network-settings.nginx]: Link nginx sites-available to sites-enabled"
+  file:
+    src: /etc/nginx/sites-available/edgestream-revproxy
+    dest: /etc/nginx/sites-enabled/edgestream-revproxy
+    state: link
+  register: nginx_revproxy_link
+
+# ----------------------------------------
+# 1.6.3 – Reload Nginx ONLY if template or link changed
+# ----------------------------------------
+- name: "[network-settings.nginx]: Reload nginx service to pick up dashboard"
+  systemd:
+    name: nginx.service
+    enabled: yes
+    state: reloaded
+  when: >
+    (nginx_revproxy_template is defined and nginx_revproxy_template.changed)
+    or
+    (nginx_revproxy_link is defined and nginx_revproxy_link.changed)
+
+# ----------------------------------------
+# 1.6.4 – Expand UFW application definition (always safe)
+# ----------------------------------------
+- name: "[network-settings.nginx]: Expand nginx dashboard ufw applications.d template"
+  template:
+    src: ./templates/etc/ufw/applications.d/edgestream-webui.j2
+    dest: /etc/ufw/applications.d/edgestream-webui
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+# ----------------------------------------
+# Compute dashboard.remote.enabled logic
+# ----------------------------------------
+- name: "[network-settings.nginx]: Compute dashboard.remote.enabled flags"
+  ansible.builtin.set_fact:
+    dre_empty: >-
+      {{
+        (
+          (advanced | default([]))
+            | selectattr('label','equalto','webui.enabled')
+            | map(attribute='value')
+            | first
+            | default(None, true)
+        ) is none
+      }}
+
+    dre_truthy: >-
+      {{
+        (
+          (advanced | default([]))
+            | selectattr('label','equalto','webui.enabled')
+            | map(attribute='value')
+            | first
+            | default('')
+        ) | string | lower
+        in ['1','true','yes','on']
+      }}
+
+- name: "[network-settings.nginx]: Permit access to webui"
+  community.general.ufw:
+    rule: allow
+    name: edgestream-webui
+  when:
+    - dre_empty or dre_truthy
+
+- name: "[network-settings.nginx]: Deny access to webui"
+  community.general.ufw:
+    rule: deny
+    name: edgestream-webui
+  when:
+    - not dre_empty
+    - not dre_truthy

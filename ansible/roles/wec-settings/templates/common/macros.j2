@@ -1,0 +1,30 @@
+{# ---------- helpers ---------- #}
+{% macro get(key, default) %}{{ S.get(key) | default(default, true) }}{% endmacro %}
+{% macro getint(key, default) %}{{ S.get(key) | default(default, true) | int }}{% endmacro %}
+{% macro getfloat(key, default) %}{{ S.get(key) | default(default, true) | float }}{% endmacro %}
+{% macro getbool(key, default) %}{{ S.get(key) | default(default, true) | bool | lower }}{% endmacro %}
+
+{# list renderer that accepts CSV, JSON-string, or native list #}
+{% macro render_list(val, indent) %}
+{% if val is string %}
+{% set t = val.strip() %}
+{% if t.startswith('[') and t.endswith(']') %}
+{% set arr = t | from_json %}
+{% for it in arr if (it|string)|length > 0 %}
+{{ indent }}- "{{ it }}"
+{% endfor %}
+{% else %}
+{% for it in val.split(',') if it|trim|length > 0 %}
+{{ indent }}- "{{ it | trim }}"
+{% endfor %}
+{% endif %}
+{% elif val is sequence and not (val is string) %}
+{% for it in val %}
+{{ indent }}- "{{ it }}"
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+{% macro sanitize(n) -%}
+  {{ (n | default('', true)) | replace('.', '_') }}
+{%- endmacro %}

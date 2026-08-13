@@ -1,0 +1,5 @@
+{% set _po = (S.get('permit_origin') if S is defined and S is mapping else none) %}
+{% if (_po is string and _po|trim|length > 0) or (_po is sequence and not (_po is string) and (_po|length) > 0) %}
+permit_origin:
+{{ H.render_list(_po, '  ') }}
+{% endif %}

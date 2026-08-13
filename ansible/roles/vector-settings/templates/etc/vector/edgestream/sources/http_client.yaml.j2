@@ -1,0 +1,80 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# http_client
+type: http_client
+address: "{{ H.get('address', 'http://127.0.0.1') }}"
+endpoint: "{{ H.get('endpoint', '/') }}"
+
+{# ---------- auth (strategy-aware) ---------- #}
+{% set strategy = (H.get('auth.strategy','') | string | lower) %}
+{% if strategy == 'basic' %}
+auth:
+  user: "{{ H.get('auth.user', '') }}"
+  password: "{{ H.get('auth.password', '') }}"
+{% elif strategy == 'token' %}
+auth:
+  token: "{{ H.get('auth.token', '') }}"
+{% endif %}
+
+decoding:
+  codec: {{ H.get('decoding.codec', 'json') }}
+  avro:
+{% set _as = S.get('decoding.avro.schema') %}
+{% if _as is not none and (_as|string)|trim|length > 0 %}
+    schema: {{ _as }}
+{% endif %}
+    strip_schema_id_prefix: {{ H.getbool('decoding.avro.strip_schema_id_prefix', true) }}
+  gelf:
+    lossy: {{ H.getbool('decoding.gelf.lossy', true) }}
+  influxdb:
+    lossy: {{ H.getbool('decoding.influxdb.lossy', true) }}
+  json:
+    lossy: {{ H.getbool('decoding.json.lossy', true) }}
+  native_json:
+    lossy: {{ H.getbool('decoding.native_json.lossy', true) }}
+{% set _pb_desc = S.get('decoding.protobuf.desc_file') %}
+{% set _pb_type = S.get('decoding.protobuf.message_type') %}
+{% if (_pb_desc is not none and (_pb_desc|string)|trim|length > 0) or
+      (_pb_type is not none and (_pb_type|string)|trim|length > 0) %}
+  protobuf:
+{% if _pb_desc is not none and (_pb_desc|string)|trim|length > 0 %}
+    desc_file: {{ _pb_desc }}
+{% endif %}
+{% if _pb_type is not none and (_pb_type|string)|trim|length > 0 %}
+    message_type: {{ _pb_type }}
+{% endif %}
+{% endif %}
+  syslog:
+    lossy: {{ H.getbool('decoding.syslog.lossy', true) }}
+  vrl:
+{% set _vrl_src = S.get('decoding.vrl.source') %}
+{% if _vrl_src is not none and (_vrl_src|string)|trim|length > 0 %}
+    source: |-
+{{ (_vrl_src | string) | indent(6) }}
+{% endif %}
+    timezone: {{ H.get('decoding.vrl.timezone', 'local') }}
+
+method: {{ (H.get('method', 'GET') | upper) }}
+
+proxy:
+  enabled: {{ H.getbool('proxy.enabled', false) }}
+{% set _px_http = S.get('proxy.http') %}
+{% if _px_http is not none and (_px_http|string)|trim|length > 0 %}  http: "{{ H.get('proxy.http', '') }}"{% endif %}
+{% set _px_https = S.get('proxy.https') %}
+{% if _px_https is not none and (_px_https|string)|trim|length > 0 %}  https: "{{ H.get('proxy.https', '') }}"{% endif %}
+{% set _no_proxy = S.get('proxy.no_proxy') %}
+{% if _no_proxy is not none %}
+  no_proxy:
+{{ H.render_list(_no_proxy, '    ') }}
+{% endif %}
+
+scrape_interval_secs: {{ H.getint('scrape_interval_secs', 15) }}
+scrape_timeout_secs: {{ H.getint('scrape_timeout_secs', 5) }}
+
+{# ---------- TLS (reuse common block) ---------- #}
+{# http_client doesn't have a MODE concept; force tcp semantics for the shared TLS partial #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

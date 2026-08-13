@@ -1,0 +1,5 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% import 'common/macros.j2' as H with context %}
+# /etc/systemd/system/vector.service.d/10-netflow-sock.conf
+[Service]
+ExecStartPre=/bin/rm -f {{ H.get('flowCollectorSocketPath', '/data/vector/netflow.sock') }}

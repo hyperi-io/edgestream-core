@@ -1,0 +1,5 @@
+# tasks/main.yml
+
+- import_tasks: edgestream_api_init.yml
+  
+- import_tasks: influx_create.yml

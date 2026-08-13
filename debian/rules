@@ -1,0 +1,41 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	@echo "Skipping upstream build (no-op for this package)."
+
+override_dh_auto_test:
+	@echo "Skipping tests (no-op)."
+
+override_dh_strip_nondeterminism:
+	# Disables dh_strip_nondeterminism to speed up the debian package creation
+
+override_dh_auto_install:
+	mkdir -p $$(pwd)/debian/edgestream-core/opt/edgestream-core/bin
+	install -m 0755 debian/contrib/influx-clean $$(pwd)/debian/edgestream-core/opt/edgestream-core/bin/influx-clean
+	install -m 0755 debian/contrib/vpn/edgestream-vpn-route $$(pwd)/debian/edgestream-core/opt/edgestream-core/bin/edgestream-vpn-route
+	install -m 0755 debian/contrib/resize-data-disk/edgestream-data-disk-grow $$(pwd)/debian/edgestream-core/opt/edgestream-core/bin/edgestream-data-disk-grow
+
+	mkdir -p $$(pwd)/debian/edgestream-core/opt/edgestream-core/etc
+	install -m 0644 ansible/etc/source_path.yml $$(pwd)/debian/edgestream-core/opt/edgestream-core/etc/source_path.yml
+	install -m 0644 ansible/etc/edgestream_overrides.yml $$(pwd)/debian/edgestream-core/opt/edgestream-core/etc/edgestream_overrides.yml
+
+	mkdir -p $$(pwd)/debian/edgestream-core/opt/edgestream-core/roles
+	cp -r ansible/roles/* $$(pwd)/debian/edgestream-core/opt/edgestream-core/roles/.
+
+	mkdir -p $$(pwd)/debian/edgestream-core/opt/edgestream-core/playbooks
+	cp -r ansible/playbooks/* $$(pwd)/debian/edgestream-core/opt/edgestream-core/playbooks/.
+
+	install -m 0644 debian/contrib/ansible.cfg $$(pwd)/debian/edgestream-core/opt/edgestream-core/playbooks/ansible.cfg
+	
+configure:
+
+clean:
+	dh_clean

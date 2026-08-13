@@ -1,0 +1,38 @@
+log:
+  path: ''
+  debug: {{ settings.debug | default(False) | bool }}
+
+{#--------- logic & safety checks ---------#}
+{% set s = source | default({}) %}
+
+{# If name is missing, this will cause a clear template error #}
+{% if not s.name %}
+  {{- "ERROR: source.name is undefined. Check your sources list." | fail -}}
+{% endif %}
+
+{% set settings = s.settings | default({}) %}
+{% set adv = advanced | default([]) %}
+
+{# Clean up the socket path: ensure no trailing slash #}
+{% set base_socket_path = (socketPath | default('/run/o365audit')).rstrip('/') %}
+
+collect:
+  workingDir: /var/cache/o365audit/{{ s.name }}/
+  contentTypes:
+    Audit.General: {{ settings.get('audit.general', '0') | bool }}
+    Audit.AzureActiveDirectory: {{ settings.get('audit.azureactivedirectory', '0') | bool }}
+    Audit.Exchange: {{ settings.get('audit.exchange', '0') | bool }}
+    Audit.SharePoint: {{ settings.get('audit.sharepoint', '0') | bool }}
+    DLP.All: {{ settings.get('dlp.all', '0') | bool }}
+  cacheSize: 500000
+  maxThreads: {{ settings.maxthreads | default('40') | int }}
+  globalTimeout: 1
+  retries: 3
+  skipKnownLogs: True
+  hoursToCollect: {{ settings.hourstocollect | default('24') | int }}
+  duplicate: 1
+
+output:
+  unixStream:
+    tenantName: {{ settings.get('tenant.id', 'default-tenant') }}
+    socketPath: {{ base_socket_path }}/{{ s.name }}.sock

@@ -1,0 +1,37 @@
+{
+  "type": "netflow",
+  "version": "1.0.0",
+  "label": "NetFlow",
+  "settings": {
+    "base": {
+      "address": {
+        "label": "Address",
+        "hint": "The socket address to listen for connections on, or systemd{#N} to use the Nth socket passed by systemd socket activation.",
+        "type": "regex",
+        "regex": "(^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]).){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])|^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9]))$",
+        "mandatory": true,
+        "default": "0.0.0.0",
+        "cast": "string"
+      },
+      "ports": {
+        "label": "Ports",
+        "hint": "A csv list of ports to listen on for netflow traffic.",
+        "type": "string",
+        "mandatory": false,
+        "default": "2055, 2056, 4739",
+        "cast": "string"
+      }
+    },
+    "tls": {},
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    }
+  }
+}

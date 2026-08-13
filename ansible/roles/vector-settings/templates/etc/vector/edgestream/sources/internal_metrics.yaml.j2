@@ -1,0 +1,9 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# Internal Metrics
+type: internal_metrics
+namespace: "{{ H.get('namespace', 'internal') }}"
+scrape_interval_secs: {{ H.getint('scrape_interval_secs', 15) }}

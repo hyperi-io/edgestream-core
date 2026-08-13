@@ -1,0 +1,50 @@
+# roles/vector-settings/tasks/render_system_templates.yml
+---
+
+- name: "[vector-settings.render_system_templates]: Build safe template context"
+  ansible.builtin.set_fact:
+    system_ctx: >-
+      {{
+        {
+          'S':            (S | default({})),
+          'transforms':   (transforms   | default([])),
+          'sources':      (sources      | default([])),
+          'destinations': (destinations | default([])),
+          'advanced':     (advanced     | default([])),
+        }
+      }}
+
+- name: "[vector-settings.render_system_templates]: Render system template content to memory"
+  ansible.builtin.set_fact:
+    rendered_system_content: >-
+      {{
+        (lookup('ansible.builtin.template', item.path, template_vars=system_ctx)
+         | default('', true)
+         | string)
+      }}
+
+- name: "[vector-settings.render_system_templates]: Normalize rendered content (trim whitespace-only)"
+  ansible.builtin.set_fact:
+    rendered_system_trim: "{{ (rendered_system_content | default('', true) | string) | trim }}"
+
+- name: "[vector-settings.render_system_templates]: Ensure output directory exists"
+  ansible.builtin.file:
+    path: "{{ output_path | dirname }}"
+    state: directory
+    owner: root
+    group: vector
+    mode: "0750"
+
+- name: "[vector-settings.render_system_templates]: Write system template if not empty"
+  ansible.builtin.copy:
+    content: "{{ rendered_system_trim }}\n"
+    dest: "{{ output_path }}"
+    owner: root
+    group: vector
+    mode: "0640"
+  when: rendered_system_trim | length > 0
+
+- name: "[vector-settings.render_system_templates]: Skip empty system template"
+  ansible.builtin.debug:
+    msg: "Skipping {{ item.path | basename }} (rendered empty)"
+  when: rendered_system_trim | length == 0

@@ -1,0 +1,47 @@
+# tasks/flow_profiles.yml
+
+- name: "[netflow-settings.ufw]: Get list of UFW application profiles from /etc/ufw/applications.d/flow-collector"
+  shell: grep -oP 'flow-collector-[^=\]]+' /etc/ufw/applications.d/flow-collector
+  register: flow_collector_profiles
+  failed_when: false
+  changed_when: false
+
+- name: "[netflow-settings.ufw]: Set fact for flow_collector_profiles_list"
+  set_fact:
+    flow_collector_profiles_list: "{{ flow_collector_profiles.stdout_lines | default([]) }}"
+  when: flow_collector_profiles.stdout is defined
+
+- name: "[netflow-settings.ufw]: Disable existing UFW profiles for flow-collector"
+  ufw:
+    rule: allow
+    name: "{{ item }}"
+    delete: true
+  loop: "{{ flow_collector_profiles_list }}"
+  when: flow_collector_profiles_list | length > 0
+
+- name: "[netflow-settings.ufw]: Reload UFW after disabling flow-collector profiles"
+  ufw:
+    state: reloaded
+  when: flow_collector_profiles_list | length > 0
+
+- name: "[netflow-settings.ufw]: Expand flow-collector ufw applications.d template"
+  template:
+    src: ./templates/etc/ufw/applications.d/flow-collector.j2
+    dest: /etc/ufw/applications.d/flow-collector
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: ufw_application_rule
+
+- name: "[netflow-settings.ufw]: Enable UFW profiles for flow-collector"
+  ufw:
+    rule: allow
+    name: "{{ item }}"
+  loop: "{{ flow_collector_profiles_list }}"
+  when: flow_collector_profiles_list | length > 0
+
+- name: "[netflow-settings.ufw]: Reload UFW after enabling flow-collector profiles"
+  ufw:
+    state: reloaded
+  when: flow_collector_profiles_list | length > 0

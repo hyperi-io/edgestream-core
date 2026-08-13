@@ -1,0 +1,4 @@
+---
+# defaults file for vector
+edgestream_secrets_file: /etc/edgestream/edgestream-api.secrets
+edgestream_credentials_path: /root/edgestream_credentials

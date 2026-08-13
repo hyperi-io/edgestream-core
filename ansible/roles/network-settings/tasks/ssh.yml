@@ -1,0 +1,53 @@
+---
+# SSH settings
+
+- name: "[network-settings.ssh]: Expand sshd_config fragment template"
+  template:
+    src: ./templates/etc/ssh/sshd_config.d/91-edgestream-settings.conf.j2
+    dest: /etc/ssh/sshd_config.d/91-edgestream-settings.conf
+    owner: root
+    group: root
+    mode: '0600'
+    backup: no
+  register: ssh_sshd_fragment
+
+- name: "[network-settings.ssh]: Expand ssh ufw applications.d template"
+  template:
+    src: ./templates/etc/ufw/applications.d/openssh-server.j2
+    dest: /etc/ufw/applications.d/openssh-server
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: ssh_ufw_app
+
+- name: "[network-settings.ssh]: Update access to ssh"
+  ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: "[network-settings.ssh]: Expand pam.d sshd template"
+  template:
+    src: ./templates/etc/pam.d/sshd.j2
+    dest: /etc/pam.d/sshd
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+  register: ssh_pam_sshd
+
+# Aggregate the changed state (only config files that actually require sshd restart)
+- name: "[network-settings.ssh]: Set fact if any ssh settings have changed"
+  set_fact:
+    ssh_changed: true
+  when: >
+    (ssh_sshd_fragment is defined and ssh_sshd_fragment.changed) or
+    (ssh_pam_sshd is defined and ssh_pam_sshd.changed)
+
+- name: "[network-settings.ssh]: Restart ssh service when settings changed"
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+    enabled: true
+  when:
+    - ssh_changed | default(false)

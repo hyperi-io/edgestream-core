@@ -1,0 +1,184 @@
+---
+# VECTOR TRANSFORMS
+
+- name: "[vector-settings.vector_transforms]: Ensure destination directory exists"
+  file:
+    path: "/etc/vector/edgestream/transforms"
+    state: directory
+    owner: root
+    group: vector
+    mode: "0750"
+
+# Multiplex value (safe if 'advanced' is undefined/missing)
+- name: "[vector-settings.vector_transforms]: Determine default multiplex value"
+  set_fact:
+    multiplex_value: >-
+      {% set v = (advanced | default([]))
+                   | selectattr('label', 'equalto', 'destination.multiplex')
+                   | map(attribute='value')
+                   | first
+                   | default(1) | int %}
+      {{ [5, [1, v] | max] | min }}
+
+- name: "[vector-settings.vector_transforms]: Ensure multiplex_value is an integer"
+  set_fact:
+    multiplex_value: "{{ multiplex_value | int }}"
+
+- name: "[vector-settings.vector_transforms]: Build multiplex_destinations list"
+  set_fact:
+    multiplex_destinations: >-
+      {{ (destinations | default([]))
+         | selectattr('enabled', 'equalto', true)
+         | list }}
+
+- name: "[vector-settings.vector_transforms]: Collect eligible sources for remap_tags"
+  set_fact:
+    remap_sources: >-
+      {{ (sources | default([]))
+         | selectattr('enabled', 'equalto', true)
+         | list }}
+
+# Expand remap sources: 1x for normal, 3x for opentelemetry (logs/metrics/traces)
+- name: "[vector-settings.vector_transforms]: Build remap_sources_expanded"
+  set_fact:
+    remap_sources_expanded: "{{ (remap_sources_expanded | default([])) + expanded }}"
+  vars:
+    _label_base: "{{ item.name }}"
+    expanded: >-
+      {{
+        (
+          [
+            {'source': item,
+             'srcname': item.name ~ '.logs',
+             'route_label': _label_base ~ '.logs'}
+            ,
+            {'source': item,
+             'srcname': item.name ~ '.metrics',
+             'route_label': _label_base ~ '.metrics'}
+            ,
+            {'source': item,
+             'srcname': item.name ~ '.traces',
+             'route_label': _label_base ~ '.traces'}
+          ]
+        ) if (item.type | default('') == 'opentelemetry')
+        else
+        [
+          {'source': item,
+           'srcname': item.name,
+           'route_label': _label_base}
+        ]
+      }}
+  loop: "{{ remap_sources | default([]) }}"
+  when: (remap_sources | default([])) | length > 0
+
+# Render 05_<srcname>_metric2log.yaml for entries that want metric_to_log
+- name: "[vector-settings.vector_transforms]: Render 05_metric_to_log.yaml.j2 (conditional)"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/transforms/05_metric_to_log.yaml.j2"
+    dest: "/etc/vector/edgestream/transforms/05_{{ item.srcname | replace('.','_') }}_metric2log.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  loop: "{{ remap_sources_expanded | default([]) }}"
+  when:
+    - (remap_sources_expanded | default([])) | length > 0
+    # metric_to_log enabled on the source
+    - (item.source.settings.metric_to_log | default('0') | int) == 1
+    # if opentelemetry is expanded, only metrics stream should get metric_to_log
+    - (item.source.type | default('')) != 'opentelemetry' or (item.srcname | default('') | regex_search('\\.metrics$'))
+  vars:
+    source: "{{ item.source }}"
+    SRCNAME_OVERRIDE: "{{ item.srcname }}"
+
+- name: "[vector-settings.vector_transforms]: Render 05_remap_tags.yaml.j2 (expanded)"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/transforms/05_remap_tags.yaml.j2"
+    dest: "/etc/vector/edgestream/transforms/05_{{ item.srcname | default('source') | replace('.','_') }}.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  loop: "{{ remap_sources_expanded | default([]) }}"
+  when: (remap_sources_expanded | default([])) | length > 0
+  vars:
+    source: "{{ item.source | default({}) }}"
+    SRCNAME_OVERRIDE: "{{ item.srcname }}"
+    ROUTELABEL_OVERRIDE: "{{ item.route_label }}"
+    # Choose input: metric2log transform id if enabled, otherwise the raw source id
+    INPUT_OVERRIDE: >-
+      {% set metric2log = (item.source.settings.metric_to_log | default('0') | int) == 1
+                          and ((item.source.type | default('')) != 'opentelemetry'
+                               or (item.srcname | default('') | regex_search('\\.metrics$'))) %}
+      {{ ('05_' ~ (item.srcname | replace('.','_')) ~ '_metric2log') if metric2log else ('01_' ~ (item.srcname | replace('.','_'))) }}
+
+# Initialize variables to avoid undefined errors
+- name: "[vector-settings.vector_transforms]: Initialize transform lists"
+  set_fact:
+    routelabel_transform_files: []
+
+- name: "[vector-settings.vector_transforms]: Render generic VRL filter transforms"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/transforms/06_filter_source_vrl.yaml.j2"
+    dest: "/etc/vector/edgestream/transforms/06_{{ item.name | replace('.', '_') }}.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  loop: "{{ transforms | default([]) }}"
+  when:
+    - (transforms | default([])) | length > 0
+    - item.enabled | default(false) | bool
+    - item.type | default('') == "filter"
+  vars:
+    transform: "{{ item }}"
+
+- name: "[vector-settings.vector_transforms]: Calculate enabled sources"
+  set_fact:
+    enabled_sources_count: "{{ sources | default([]) | selectattr('enabled', 'equalto', true) | list | length }}"
+
+- name: "[vector-settings.vector_transforms]: Render 08_router.yaml"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/transforms/08_router.yaml.j2"
+    dest: "/etc/vector/edgestream/transforms/08_router.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  when: enabled_sources_count | int > 0
+
+- name: "[vector-settings.vector_transforms]: Remove 08_router.yaml if no sources are enabled"
+  file:
+    path: "/etc/vector/edgestream/transforms/08_router.yaml"
+    state: absent
+  when: enabled_sources_count | int == 0
+
+- name: "[vector-settings.vector_transforms]: Render 08_mplex_<destination.name>.yaml files"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/transforms/08_mplex_router.yaml.j2"
+    dest: "/etc/vector/edgestream/transforms/08_mplex_{{ item.name | default('unnamed') }}.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  loop: "{{ multiplex_destinations | default([]) }}"
+  vars:
+    destination: "{{ item | default({}) }}"
+    multiplex_value: "{{ multiplex_value }}"
+  when:
+    - (multiplex_destinations | default([])) | length > 0
+
+# System Transforms
+- name: "[vector-settings.vector_transforms]: Find system transform templates"
+  find:
+    paths: "{{ role_path }}/templates/etc/vector/edgestream/transforms/system"
+    patterns: "*.yaml.j2"
+  register: system_transform_templates
+  when: vector_settings_system_transforms is not defined or vector_settings_system_transforms | bool
+
+- name: "[vector-settings.vector_transforms]: Render system transform template via include"
+  include_tasks: render_system_templates.yml
+  loop: "{{ system_transform_templates.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  vars:
+    output_path: "/etc/vector/edgestream/transforms/{{ item.path | basename | regex_replace('\\.j2$', '') }}"
+  when:
+    - system_transform_templates is defined
+    - (system_transform_templates.files | default([])) | length > 0
+    - vector_settings_system_transforms is not defined or vector_settings_system_transforms | bool

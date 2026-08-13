@@ -1,0 +1,10 @@
+---
+# defaults file for vector
+
+nginx_ssl_directory: "/etc/edgestream/ssl"
+
+nginx_ssl_private_key: "/etc/edgestream/ssl/nginx-server.key"
+nginx_ssl_certificate: "/etc/edgestream/ssl/nginx-server.crt"
+
+cert_common_name: "edgestream"
+cert_organization_name: "edgestream gateway"

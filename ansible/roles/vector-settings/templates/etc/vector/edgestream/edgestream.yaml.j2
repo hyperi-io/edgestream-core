@@ -1,0 +1,25 @@
+{# ---------- helpers ---------- #}
+{% set SYS = system if system is defined else {} %}
+{% macro sget(key, default) -%}{{ (SYS.get(key) if SYS is mapping else none) | default(default, true) }}{%- endmacro %}
+
+#                                    __   __  __
+#                                    \ \ / / / /
+#                                     \ V / / /
+#                                      \_/  \/
+#
+#                                    V E C T O R
+#                                   Configuration
+#
+# ------------------------------------------------------------------------------
+
+data_dir: "{{ vectorCacheDirectory | default('/data/vector', true) }}"
+timezone: "{{ sget('timezone', 'UTC') }}"
+
+log_schema:
+  host_key: "@edgestream.hub.host"
+  timestamp_key: "@edgestream.hub.timestamp"
+  source_type_key: "@edgestream.hub.source_type"
+
+api:
+  enabled: true
+  address: "127.0.0.1:8686"

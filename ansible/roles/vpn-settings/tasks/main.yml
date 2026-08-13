@@ -1,0 +1,4 @@
+# tasks/main.yml for VPN Settings
+
+- import_tasks: vpn.yml
+  when: (client_vpn_enabled | default(edge_task_default_enabled | default(true))) | bool

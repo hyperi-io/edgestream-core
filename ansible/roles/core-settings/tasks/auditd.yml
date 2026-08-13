@@ -1,0 +1,8 @@
+---
+# Configure auditd settings
+
+- name: "[core-settings.audit]: Limit audit.log files"
+  replace:
+    path: /etc/audit/auditd.conf
+    regexp: 'max_log_file_action = keep_logs'
+    replace: 'max_log_file_action = rotate'

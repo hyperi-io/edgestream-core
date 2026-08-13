@@ -1,0 +1,28 @@
+--- 
+- name: edgestream-hub
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  ignore_errors: true
+  
+  vars:
+    version: "1.0"
+    mode: "configure"
+  
+  vars_files:
+    - /opt/edgestream-core/etc/source_path.yml
+    - "{{ edgestream_settings_file }}"
+        
+  roles:
+    - {role: "post-init", tags: ["post-init"]}
+    - {role: "core-settings", tags: ["core-settings"]}
+    - {role: "certificate-settings", tags: ["certificate-settings"]}
+    - {role: "vector-settings", tags: ["vector-settings"]}
+    - {role: "netflow-settings", tags: ["netflow-settings"]}
+    - {role: "wec-settings", tags: ["wec-settings"]}
+    - {role: "syslog-settings", tags: ["syslog-settings"]}
+    - {role: "o365audit-settings", tags: ["o365audit-settings"]}
+    - {role: "network-settings", tags: ["network-settings"]}
+    - {role: "dns-settings", tags: ["dns-settings"]}
+    - {role: "ntp-settings", tags: ["ntp-settings"]}
+    - {role: "vpn-settings", tags: ["vpn-settings"]}

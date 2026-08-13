@@ -1,0 +1,203 @@
+{
+  "type": "host_metrics",
+  "version": "1.0.0",
+  "label": "Host Metrics",
+  "settings": {
+    "base": {
+      "metric_to_log": {
+        "label": "Metric to Log",
+        "hint": "Convert a metric event into a log event, which can be useful for sending metrics to log-support downstream components.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      }
+    },
+    "tls": {},
+    "optional": {
+      "description": {
+        "label": "Description",
+        "hint": "The description of the entry.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "collectors": {
+        "label": "Collectors",
+        "hint": "The list of host metric collector services to use. Defaults to all collectors.",
+        "type": "enum-multi",
+        "enum": [
+          "cpu",
+          "disk",
+          "filesystem",
+          "load",
+          "host",
+          "memory",
+          "network",
+          "process",
+          "cgroups",
+          "tcp"
+        ],
+        "mandatory": false,
+        "default": [
+          "cpu",
+          "disk",
+          "filesystem",
+          "load",
+          "host",
+          "memory",
+          "network",
+          "process",
+          "cgroups",
+          "tcp"
+        ],
+        "cast": "string"
+      },
+      "namespace": {
+        "label": "Namespace",
+        "hint": "Overrides the default namespace for the metrics emitted by the source.",
+        "type": "string",
+        "mandatory": false,
+        "default": "host",
+        "cast": "string"
+      },
+      "scrape_interval_secs": {
+        "label": "Scrape Interval Secs",
+        "hint": "The interval between metric gathering, in seconds.",
+        "type": "int",
+        "mandatory": false,
+        "default": 15,
+        "cast": "int"
+      },
+      "cgroups.base": {
+        "label": "Cgroups Base",
+        "hint": "The base cgroup name to provide metrics for.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "cgroups.groups.excludes": {
+        "label": "Cgroups Groups Excludes",
+        "hint": "CSV list of cgroup name patterns to exclude in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "cgroups.groups.includes": {
+        "label": "Cgroups Groups Includes",
+        "hint": "CSV list of cgroup name patterns to include in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "cgroups.levels": {
+        "label": "Cgroups Levels",
+        "hint": "The number of levels of the cgroups hierarchy for which to report metrics. A value of 1 means the root or named cgroup.",
+        "type": "int",
+        "mandatory": false,
+        "default": 100,
+        "cast": "int"
+      },
+      "disk.devices.excludes": {
+        "label": "Disk Devices Excludes",
+        "hint": "CSV list of device name patterns to exclude in gathering I/O utilization metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "disk.devices.includes": {
+        "label": "Disk Devices Includes",
+        "hint": "CSV list of device name patterns to include in gathering I/O utilization metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filesystem.devices.excludes": {
+        "label": "Filesystem Devices Excludes",
+        "hint": "CSV list of device name patterns to exclude in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filesystem.devices.includes": {
+        "label": "Filesystem Devices Includes",
+        "hint": "CSV list of device name patterns to include in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filesystem.filesystems.excludes": {
+        "label": "Filesystem Filesystems Excludes",
+        "hint": "CSV list of filesystem name patterns to exclude in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filesystem.filesystems.includes": {
+        "label": "Filesystem Filesystems Includes",
+        "hint": "CSV list of filesystem name patterns to include in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filesystem.mountpoints.excludes": {
+        "label": "Filesystem Mountpoints Excludes",
+        "hint": "CSV list of mount point path patterns to exclude in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "filesystem.mountpoints.includes": {
+        "label": "Filesystem Mountpoints Includes",
+        "hint": "CSV list of mount point path patterns to include in gathering usage metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "network.devices.excludes": {
+        "label": "Network Devices Excludes",
+        "hint": "CSV list of device name patterns to exclude in gathering network utilization metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "network.devices.includes": {
+        "label": "Network Devices Includes",
+        "hint": "CSV list of device name patterns to include in gathering network utilization metrics.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "process.processes.excludes": {
+        "label": "Process Processes Excludes",
+        "hint": "CSV list of process name patterns to exclude.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "process.processes.includes": {
+        "label": "Process Processes Includes",
+        "hint": "CSV list of process name patterns to include.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      }
+    }
+  }
+}

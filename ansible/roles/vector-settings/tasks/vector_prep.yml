@@ -1,0 +1,61 @@
+---
+# tasks/vector-prep.yml
+- name: "[vector-settings.vector_prep]: Ensure edgestream directories exist"
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /etc/vector/edgestream
+    - /etc/vector/edgestream/sources
+    - /etc/vector/edgestream/transforms
+    - /etc/vector/edgestream/sinks
+  when:
+    - vector_settings_3_1_6 is not defined or vector_settings_3_1_6 | bool
+
+- name: "[vector-settings.vector_prep]: Ensure drop-in directory exists"
+  ansible.builtin.file:
+    path: /etc/systemd/system/vector.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: "[vector-settings.vector_prep]: Install netflow socket cleanup drop-in"
+  ansible.builtin.template:
+    src: ./templates/etc/systemd/system/vector.service.d/10-netflow-sock.conf.j2
+    dest: /etc/systemd/system/vector.service.d/10-netflow-sock.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: vector_dropin
+
+- name: "[vector-settings.vector_prep]: Reload systemd daemon"
+  ansible.builtin.command: systemctl daemon-reload
+  become: true
+  when: vector_dropin.changed
+
+- name: "[vector-settings.vector_prep]: Find all 0*-prefixed files in edgestream directories"
+  find:
+    paths: "{{ item }}"
+    patterns:
+      - "^0.*"
+      - "^1.*"
+    use_regex: true
+    file_type: file
+  loop:
+    - /etc/vector/edgestream/sources
+    - /etc/vector/edgestream/transforms
+    - /etc/vector/edgestream/sinks
+  register: found_0_files
+  ignore_errors: yes
+
+- name: "[vector-settings.vector_prep]: Delete all matching 0*-prefixed files"
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ found_0_files.results | map(attribute='files') | flatten }}"
+  when:
+    - vector_settings_3_1_8 is not defined or vector_settings_3_1_8 | bool

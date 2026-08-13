@@ -1,0 +1,22 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings if source is defined else {} %}
+{% import 'common/macros.j2' as H with context %}
+
+{# ---------- find first enabled netflow source ---------- #}
+{% set netflow_sources = sources
+  | selectattr('type', 'match', 'netflow', ignorecase=True)
+  | selectattr('enabled', 'truthy', convert_bool=True)
+  | list %}
+
+{% if netflow_sources | length > 0 %}
+{% set source = netflow_sources[0] %}
+
+# Netflow
+type: socket
+mode: unix_datagram
+path: "{{ H.get('flowCollectorSocketPath', '/data/vector/netflow.sock') }}"
+socket_file_mode: 770
+decoding:
+  codec: json
+{% endif %}

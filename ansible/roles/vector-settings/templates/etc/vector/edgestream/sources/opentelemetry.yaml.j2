@@ -1,0 +1,139 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# opentelemetry
+type: opentelemetry
+
+{# ---------- gRPC ---------- #}
+{% set grpc_addr = H.get('grpc.address', '0.0.0.0:4317') %}
+{% set grpc_tls_enabled = (S.get('grpc.tls.enabled') | default(S.get('tls.enabled'), true) | default(false, true)) | bool %}
+{% set grpc_alpn = S.get('grpc.tls.alpn_protocols') | default(S.get('tls.alpn_protocols'), true) %}
+{% set grpc_ca_file = S.get('grpc.tls.ca_file') | default(S.get('tls.ca_file'), true) %}
+{% set grpc_crt_file = S.get('grpc.tls.crt_file') | default(S.get('tls.crt_file'), true) %}
+{% set grpc_key_file = S.get('grpc.tls.key_file') | default(S.get('tls.key_file'), true) %}
+{% set grpc_key_pass = S.get('grpc.tls.key_pass') | default(S.get('tls.key_pass'), true) %}
+{% set grpc_server_name = S.get('grpc.tls.server_name') | default(S.get('tls.server_name'), true) %}
+{% set grpc_verify_cert = S.get('grpc.tls.verify_certificate') | default(S.get('tls.verify_certificate'), true) %}
+{% set grpc_verify_host = S.get('grpc.tls.verify_hostname') | default(S.get('tls.verify_hostname'), true) %}
+
+{% set grpc_has_alpn = (grpc_alpn is string and grpc_alpn|trim|length > 0)
+                        or (grpc_alpn is sequence and not (grpc_alpn is string) and (grpc_alpn|length) > 0) %}
+{% set grpc_has_tls = grpc_tls_enabled
+  or grpc_has_alpn
+  or grpc_ca_file is not none
+  or grpc_crt_file is not none
+  or grpc_key_file is not none
+  or (grpc_key_pass | default('', true) | string | length) > 0
+  or grpc_server_name is not none
+  or grpc_verify_cert is not none
+  or grpc_verify_host is not none %}
+
+grpc:
+  address: "{{ grpc_addr }}"
+{% if grpc_has_tls %}
+  tls:
+    enabled: {{ grpc_tls_enabled | lower }}
+{% if grpc_has_alpn %}
+    alpn_protocols:
+{{ H.render_list(grpc_alpn, '      ') }}
+{% endif %}
+{% if grpc_ca_file %}
+    ca_file: {{ certificatePath }}/ca/{{ grpc_ca_file }}
+{% endif %}
+{% if grpc_crt_file %}
+    crt_file: {{ certificatePath }}/certs/{{ grpc_crt_file }}
+{% endif %}
+{% if grpc_key_file %}
+    key_file: {{ certificatePath }}/private/{{ grpc_key_file }}
+{% endif %}
+{% if grpc_key_pass is not none and (grpc_key_pass | string) | length > 0 %}
+    key_pass: {{ grpc_key_pass }}
+{% endif %}
+{% if grpc_server_name %}
+    server_name: "{{ grpc_server_name }}"
+{% endif %}
+{% if grpc_verify_cert is not none %}
+    verify_certificate: {{ (grpc_verify_cert | bool) | lower }}
+{% endif %}
+{% if grpc_verify_host is not none %}
+    verify_hostname: {{ (grpc_verify_host | bool) | lower }}
+{% endif %}
+{% endif %}
+
+{# ---------- HTTP ---------- #}
+{% set http_addr = H.get('http.address', '0.0.0.0:4318') %}
+{% set http_headers = S.get('http.headers') %}
+{% set http_has_headers = (http_headers is string and http_headers|trim|length > 0)
+                           or (http_headers is sequence and not (http_headers is string) and (http_headers|length) > 0)
+                           or (http_headers is mapping and (http_headers|length) > 0) %}
+
+{% set http_tls_enabled = (S.get('http.tls.enabled') | default(S.get('tls.enabled'), true) | default(false, true)) | bool %}
+{% set http_alpn = S.get('http.tls.alpn_protocols') | default(S.get('tls.alpn_protocols'), true) %}
+{% set http_ca_file = S.get('http.tls.ca_file') | default(S.get('tls.ca_file'), true) %}
+{% set http_crt_file = S.get('http.tls.crt_file') | default(S.get('tls.crt_file'), true) %}
+{% set http_key_file = S.get('http.tls.key_file') | default(S.get('tls.key_file'), true) %}
+{% set http_key_pass = S.get('http.tls.key_pass') | default(S.get('tls.key_pass'), true) %}
+{% set http_server_name = S.get('http.tls.server_name') | default(S.get('tls.server_name'), true) %}
+{% set http_verify_cert = S.get('http.tls.verify_certificate') | default(S.get('tls.verify_certificate'), true) %}
+{% set http_verify_host = S.get('http.tls.verify_hostname') | default(S.get('tls.verify_hostname'), true) %}
+
+{% set http_has_alpn = (http_alpn is string and http_alpn|trim|length > 0)
+                        or (http_alpn is sequence and not (http_alpn is string) and (http_alpn|length) > 0) %}
+{% set http_has_tls = http_tls_enabled
+  or http_has_alpn
+  or http_ca_file is not none
+  or http_crt_file is not none
+  or http_key_file is not none
+  or (http_key_pass | default('', true) | string | length) > 0
+  or http_server_name is not none
+  or http_verify_cert is not none
+  or http_verify_host is not none %}
+
+http:
+  address: "{{ http_addr }}"
+{% if http_has_headers %}
+  headers:
+{# If mapping, render keys; otherwise use H.render_list directly #}
+{% if http_headers is mapping %}
+{{ H.render_list(http_headers.keys() | list, '    ') }}
+{% else %}
+{{ H.render_list(http_headers, '    ') }}
+{% endif %}
+{% endif %}
+  keepalive:
+    max_connection_age_jitter_factor: {{ H.getfloat('http.keepalive.max_connection_age_jitter_factor', 0.10) }}
+    max_connection_age_secs: {{ H.getint('http.keepalive.max_connection_age_secs', 300) }}
+{% if http_has_tls %}
+  tls:
+    enabled: {{ http_tls_enabled | lower }}
+{% if http_has_alpn %}
+    alpn_protocols:
+{{ H.render_list(http_alpn, '      ') }}
+{% endif %}
+{% if http_ca_file %}
+    ca_file: {{ certificatePath }}/ca/{{ http_ca_file }}
+{% endif %}
+{% if http_crt_file %}
+    crt_file: {{ certificatePath }}/certs/{{ http_crt_file }}
+{% endif %}
+{% if http_key_file %}
+    key_file: {{ certificatePath }}/private/{{ http_key_file }}
+{% endif %}
+{% if http_key_pass is not none and (http_key_pass | string) | length > 0 %}
+    key_pass: {{ http_key_pass }}
+{% endif %}
+{% if http_server_name %}
+    server_name: "{{ http_server_name }}"
+{% endif %}
+{% if http_verify_cert is not none %}
+    verify_certificate: {{ (http_verify_cert | bool) | lower }}
+{% endif %}
+{% if http_verify_host is not none %}
+    verify_hostname: {{ (http_verify_host | bool) | lower }}
+{% endif %}
+{% endif %}
+
+# OTLP decoding switch
+use_otlp_decoding: {{ H.getbool('use_otlp_decoding', false) }}

@@ -1,0 +1,9 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+
+# Syslog-ng: {{ source.name }}
+type: socket
+mode: unix_stream
+path: "/run/vector/{{ source.name }}.sock"
+socket_file_mode: 770
+decoding:
+  codec: json

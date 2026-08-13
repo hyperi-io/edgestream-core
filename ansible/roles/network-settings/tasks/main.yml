@@ -1,0 +1,13 @@
+---
+# tasks/main.yml
+
+# - import_tasks: network_interfaces.yml
+- import_tasks: netplan.yml
+  when: 
+    - (network_interfaces_configuration_enabled | default(edge_task_default_enabled | default(true))) | bool
+    
+- import_tasks: ssl.yml
+
+- import_tasks: nginx.yml
+
+- import_tasks: ssh.yml

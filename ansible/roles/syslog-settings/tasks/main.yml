@@ -1,0 +1,6 @@
+---
+- import_tasks: syslog_ng.yml
+  when: (syslog_rsyslog_enabled | default(edge_task_default_enabled | default(true))) | bool
+
+- import_tasks: syslog_ufw.yml
+  when: (syslog_ufw_configuration_enabled | default(edge_task_default_enabled | default(true))) | bool

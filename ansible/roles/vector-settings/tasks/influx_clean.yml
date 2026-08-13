@@ -1,0 +1,34 @@
+- name: "[vector-settings.influx_clean]: Check influx-clean script installed by package"
+  stat:
+    path: /opt/edgestream-core/bin/influx-clean
+  register: influx_clean_stat
+
+- name: "[vector-settings.influx_clean]: Ensure influx-clean script is executable (if present)"
+  file:
+    path: /opt/edgestream-core/bin/influx-clean
+    mode: '0755'
+  when: influx_clean_stat.stat.exists
+
+- name: "[vector-settings.influx_clean]: Install hourly influx-clean cron.d entry"
+  template:
+    src: ./templates/etc/cron.d/influx-clean.j2
+    dest: /etc/cron.d/influx-clean
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    # optional overrides:
+    engine_dir: /data/influxdb/engine
+    state_dir: /var/lib/cleandb_state
+    buckets:
+      - vector_metric
+      - health_metric
+    influx_org: edgestream
+
+- name: "[vector-settings.influx_clean]: Install influx-clean logrotate entry"
+  template:
+    src: ./templates/etc/logrotate.d/influx-clean.j2
+    dest: /etc/logrotate.d/influx-clean
+    owner: root
+    group: root
+    mode: '0644'

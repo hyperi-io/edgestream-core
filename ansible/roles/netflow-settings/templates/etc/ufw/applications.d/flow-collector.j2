@@ -1,0 +1,27 @@
+{% set srcs = sources | default([]) %}
+
+{% for source in srcs %}
+{% set stype = source.type | default('') %}
+{% set enabled = source.enabled | default(false) %}
+{% if stype is match('netflow', ignorecase=True) and (enabled is truthy(convert_bool=True)) %}
+{% set settings = source.settings | default({}) %}
+{% set ports_raw = settings.ports | default('2055') | string %}
+{# split, trim, drop empties/non-numeric, keep as strings for output #}
+{% set ports = ports_raw
+                   | replace(' ', '')
+                   | split(',')
+                   | select('match', '^[0-9]+$')
+                   | list %}
+{% if ports | length == 0 %}
+{% set ports = ['2055'] %}
+{% endif %}
+
+{% for port in ports %}
+[flow-collector-{{ source.name | default('unnamed') }}-{{ port }}]
+title={{ source.name | default('unnamed') }}
+description={{ settings.description | default(source.name | default('unnamed')) }}
+ports={{ port }}/udp
+
+{% endfor %}
+{% endif %}
+{% endfor %}

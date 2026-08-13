@@ -1,0 +1,27 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set srcs = sources | default([]) %}
+{% for source in srcs %}
+{# ---- safe locals ---- #}
+{% set stype    = source.type | default('') %}
+{% set enabled  = source.enabled | default(false) %}
+{% set settings = source.settings | default({}) %}
+{% set name     = source.name | default('unnamed') %}
+{% set address  = settings.address | default('') | string | trim %}
+{% set port     = (address.split(':')[-1] if ':' in address else none) %}
+{% set mode     = settings.mode | default('tcp') %}
+{% set desc     = settings.description | default(name) %}
+{# ---- filters/guards ---- #}
+{% if
+(stype is not match('netflow', ignorecase=True)) and
+(stype is not match('syslog_ng', ignorecase=True)) and
+(stype is not match('o365audit', ignorecase=True)) and
+(enabled is truthy(convert_bool=True)) and
+(port is not none) and (port | string | trim | length > 0)
+%}
+[edgestream-core-{{ name }}]
+title={{ name }}
+description={{ desc }}
+ports={{ port }}/{{ mode }}
+{% endif %}
+
+{% endfor %}

@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+#    00-header - create the header of the MOTD
+
+[ -r /etc/lsb-release ] && . /etc/lsb-release
+
+if [ -z "$DISTRIB_DESCRIPTION" ] && [ -x /usr/bin/lsb_release ]; then
+        # Fall back to using the very slow lsb_release utility
+        DISTRIB_DESCRIPTION=$(lsb_release -s -d)
+fi
+
+
+cat << 'EOF'
+         ______    __          _____ __                          
+        / ____/___/ /___ ____ / ___// /_________  ____ _____ ___ 
+       / __/ / __  / __ `/ _ \\__ \/ __/ ___/ _ \/ __ `/ __ `__ \
+      / /___/ /_/ / /_/ /  __/__/ / /_/ /  /  __/ /_/ / / / / / /
+     /_____/\__,_/\__, /\___/____/\__/_/   \___/\__,_/_/ /_/ /_/ 
+            /____/                                          
+
+EOF
+
+printf "EdgeStream Gateway - %s (%s %s %s)\n" "$DISTRIB_DESCRIPTION" "$(uname -o)" "$(uname -r)" "$(uname -m)"

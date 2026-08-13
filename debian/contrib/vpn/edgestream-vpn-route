@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+action="${1:?up|down|refresh}"
+type="${2:?openvpn|wireguard}"
+name="${3:?profile-name}"
+
+cfg="/etc/edgestream/vpn/${name}.yml"
+if [[ ! -f "$cfg" ]]; then
+  exit 0
+fi
+
+# Minimal YAML parsing (no yq). Expected format:
+# routing_enabled: true|false
+# table_id: <num>
+# kill_switch: true|false
+# destinations:
+#   - 1.2.3.4/32
+#   - 10.0.0.0/24
+
+table="$(awk -F': ' '/^table_id:/{print $2}' "$cfg" | tr -d '\r' | xargs)"
+enabled="$(awk -F': ' '/^routing_enabled:/{print $2}' "$cfg" | tr -d '\r' | xargs)"
+killswitch="$(awk -F': ' '/^kill_switch:/{print $2}' "$cfg" | tr -d '\r' | xargs)"
+
+# Default sane fallbacks if keys missing
+table="${table:-200}"
+enabled="${enabled:-false}"
+killswitch="${killswitch:-false}"
+
+if [[ "${enabled}" != "true" ]]; then
+  exit 0
+fi
+
+# Interface name
+if [[ "$type" == "wireguard" ]]; then
+  iface="$name"
+else
+  iface="tun-es-${name}"
+fi
+
+# Parse destinations list safely (stops when list ends / next key begins)
+mapfile -t dests < <(
+  awk '
+    /^destinations:/ { in_list=1; next }
+    in_list {
+      if ($0 ~ /^[[:space:]]*-[[:space:]]*/) {
+        sub(/^[[:space:]]*-[[:space:]]*/, "", $0)
+        sub(/\r$/, "", $0)
+        print
+        next
+      }
+      if ($0 ~ /^[[:space:]]*$/) next
+      exit
+    }
+  ' "$cfg" | sed -e 's/[[:space:]]*$//' -e '/^$/d'
+)
+
+# Nothing to do if no destinations
+if [[ ${#dests[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+# Validate table id is numeric (ip rule/route will fail otherwise)
+if ! [[ "$table" =~ ^[0-9]+$ ]]; then
+  echo "edgestream-vpn-route: invalid table_id '$table' in $cfg" >&2
+  exit 1
+fi
+
+# Ensure rules exist (idempotent)
+# NOTE: ip rule show prints "to 8.8.8.8" (no /32) so don't grep-match on CIDR.
+# Just add and ignore EEXIST.
+for d in "${dests[@]}"; do
+  [[ -z "$d" ]] && continue
+  ip rule add to "$d" table "$table" priority "$table" 2>/dev/null || true
+done
+
+install_routes() {
+  for d in "${dests[@]}"; do
+    [[ -z "$d" ]] && continue
+    ip route replace "$d" dev "$iface" table "$table"
+  done
+  # Important: route cache can make testing look "stuck"
+  ip route flush cache >/dev/null 2>&1 || true
+}
+
+remove_routes() {
+  for d in "${dests[@]}"; do
+    [[ -z "$d" ]] && continue
+    ip route del "$d" table "$table" 2>/dev/null || true
+  done
+  ip route flush cache >/dev/null 2>&1 || true
+}
+
+blackhole_routes() {
+  for d in "${dests[@]}"; do
+    [[ -z "$d" ]] && continue
+    ip route replace blackhole "$d" table "$table"
+  done
+  ip route flush cache >/dev/null 2>&1 || true
+}
+
+case "$action" in
+  up)
+    # Interface should exist after wg-quick/openvpn starts, but be tolerant:
+    if ip link show "$iface" >/dev/null 2>&1; then
+      install_routes
+    else
+      # If iface isn't up yet, don't install device routes.
+      # Leave rules in place; refresh will fix it once iface exists.
+      exit 0
+    fi
+    ;;
+  down)
+    if [[ "$killswitch" == "true" ]]; then
+      blackhole_routes
+    else
+      remove_routes
+    fi
+    ;;
+  refresh)
+    if ip link show "$iface" >/dev/null 2>&1; then
+      install_routes
+    else
+      if [[ "$killswitch" == "true" ]]; then
+        blackhole_routes
+      else
+        remove_routes
+      fi
+    fi
+    ;;
+  *)
+    echo "edgestream-vpn-route: unknown action '$action' (expected up|down|refresh)" >&2
+    exit 2
+    ;;
+esac

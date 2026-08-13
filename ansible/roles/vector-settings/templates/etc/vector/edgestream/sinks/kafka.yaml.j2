@@ -1,0 +1,143 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = destination.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set m         = (multiplex_value | default(1, true) | int) %}
+{% set idx       = (i | default(1, true) | int) %}
+{% set dest_name = destination.name | default('dest', true) %}
+
+# Kafka
+type: kafka
+
+{# bootstrap_servers: accept CSV string or list; default to localhost if missing #}
+{% set _bs = S.get('bootstrap_servers') %}
+{% if _bs is not none and ( (_bs is string and _bs|trim|length>0) or (_bs is sequence and not (_bs is string) and _bs|length>0) ) %}
+bootstrap_servers:
+{{ H.render_list(_bs, '  ') }}
+{% else %}
+bootstrap_servers:
+  - "localhost:9092"
+{% endif %}
+
+topic: "{{ H.get('topic','') }}"
+
+encoding:
+  codec: {{ H.get('encoding.codec', 'json') }}
+{% set _avro_schema = S.get('encoding.avro.schema') %}
+{% if _avro_schema is not none and (_avro_schema|string)|trim|length > 0 %}
+  avro:
+    schema: {{ _avro_schema }}
+{% endif %}
+  csv:
+    capacity: {{ H.getint('encoding.csv.capacity', 8192) }}
+    delimiter: "{{ H.get('encoding.csv.delimiter', ',') }}"
+    double_quote: {{ H.getbool('encoding.csv.double_quote', true) }}
+    escape: "{{ H.get('encoding.csv.escape', '\"') }}"
+{% set _csv_fields = S.get('encoding.csv.fields') %}
+{% if (_csv_fields is string and _csv_fields|trim|length > 0) or (_csv_fields is sequence and not (_csv_fields is string) and _csv_fields|length > 0) %}
+    fields:
+{{ H.render_list(_csv_fields, '      ') }}
+{% endif %}
+    quote: "{{ H.get('encoding.csv.quote', '\"') }}"
+    quote_style: {{ H.get('encoding.csv.quote_style', 'necessary') }}
+{% set _csv_except = S.get('encoding.csv.except_fields') %}
+{% if (_csv_except is string and _csv_except|trim|length > 0) or (_csv_except is sequence and not (_csv_except is string) and _csv_except|length > 0) %}
+    except_fields:
+{{ H.render_list(_csv_except, '      ') }}
+{% endif %}
+  json:
+    pretty: {{ H.getbool('encoding.json.pretty', false) }}
+  metric_tag_values: {{ H.get('encoding.metric_tag_values', 'single') | lower }}
+{% set _only_fields = S.get('encoding.only_fields') %}
+{% if (_only_fields is string and _only_fields|trim|length > 0) or (_only_fields is sequence and not (_only_fields is string) and _only_fields|length > 0) %}
+  only_fields:
+{{ H.render_list(_only_fields, '  ') }}
+{% endif %}
+{% set _pdesc = S.get('encoding.protobuf.desc_file') %}
+{% set _ptype = S.get('encoding.protobuf.message_type') %}
+{% if (_pdesc is not none and (_pdesc|string)|trim|length>0) or (_ptype is not none and (_ptype|string)|trim|length>0) %}
+  protobuf:
+{% if _pdesc is not none and (_pdesc|string)|trim|length>0 %}
+    desc_file: {{ _pdesc }}
+{% endif %}
+{% if _ptype is not none and (_ptype|string)|trim|length>0 %}
+    message_type: {{ _ptype }}
+{% endif %}
+{% endif %}
+{% set _tsfmt = S.get('encoding.timestamp_format') %}
+{% if _tsfmt is not none and (_tsfmt|string)|trim|length > 0 %}
+  timestamp_format: {{ _tsfmt }}
+{% endif %}
+
+{% set _key_field = S.get('encoding.key_field') %}
+{% if _key_field is not none and (_key_field|string)|trim|length > 0 %}
+key_field: "{{ _key_field }}"
+{% endif %}
+
+{% set _rdk = S.get('librdkafka_options') %}
+{% if _rdk is not none %}
+librdkafka_options:
+{{ H.render_list(_rdk, '  ') }}
+{% endif %}
+
+{% set _msg_timeout = S.get('message_timeout_ms') %}
+{% if _msg_timeout is not none %}
+message_timeout_ms: {{ H.getint('message_timeout_ms', 0) }}
+{% endif %}
+
+sasl:
+  enabled: {{ H.getbool('sasl.enabled', false) }}
+{% set _mech = S.get('sasl.mechanism') %}
+{% if _mech is not none and (_mech|string)|trim|length>0 %}
+  mechanism: "{{ H.get('sasl.mechanism','') }}"
+{% endif %}
+{% set _su = S.get('sasl.username')  %}
+{% if _su  is not none and (_su|string)|trim|length>0  %}
+  username: "{{ H.get('sasl.username','') }}"
+{% endif %}
+{% set _sp = S.get('sasl.password')  %}
+{% if _sp  is not none and (_sp|string)|trim|length>0  %}
+  password: "{{ H.get('sasl.password','') }}"
+{% endif %}
+
+socket_timeout_ms: {{ H.getint('socket_timeout_ms', 60000) }}
+
+batch:
+{% if S.get('batch.max_bytes') is not none %}
+  max_bytes: {{ H.getint('batch.max_bytes', 0) }}
+{% endif %}
+  max_events: {{ H.getint('batch.max_events', 1000) }}
+  timeout_secs: {{ H.getint('batch.timeout_secs', 1) }}
+
+buffer:
+  type: {{ H.get('buffer.type', 'memory') }}
+{% set _btype = S.get('buffer.type') %}
+{% if _btype is none or _btype == 'memory' %}
+  max_events: {{ H.getint('buffer.max_events', 500) }}
+{% else %}
+  max_size: {{ H.getint('buffer.max_size', 268435488) }}
+{% endif %}
+  when_full: {{ H.get('buffer.when_full', 'block') }}
+
+compression: {{ H.get('compression', 'none') }}
+
+healthcheck:
+  enabled: false
+
+inputs:
+{% if m == 1 %}
+{% if destination.routes is defined and destination.routes | length > 0 %}
+  - 08_router.{{ H.sanitize(dest_name) }}
+{% endif %}
+{% if destination.fallback is truthy(convert_bool=True) %}
+  - 08_router._unmatched
+{% endif %}
+{% elif idx < m %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}.r{{ idx }}
+{% else %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}._unmatched
+{% endif %}
+
+{# ---------- TLS (shared; Kafka is TCP; leave ALPN default behavior) ---------- #}
+{% set MODE = 'tcp' %}
+{% include 'common/blocks/tls.j2' %}

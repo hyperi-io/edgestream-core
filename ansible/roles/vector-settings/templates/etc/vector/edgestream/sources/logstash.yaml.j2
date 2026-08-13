@@ -1,0 +1,25 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# Logstash
+type: logstash
+address: "{{ H.get('address', '0.0.0.0:5044') }}"
+
+{% if S.get('connection_limit') is not none and (S.get('connection_limit') | string) | length > 0 %}
+connection_limit: {{ H.getint('connection_limit', 0) }}
+{% endif %}
+
+keepalive:
+  time_secs: {{ H.getint('keepalive.time_secs', 7200) }}
+
+{% include 'common/blocks/permit_origin.j2' %}
+
+{% if S.get('receive_buffer_bytes') is not none and (S.get('receive_buffer_bytes') | string) | length > 0 %}
+receive_buffer_bytes: {{ H.getint('receive_buffer_bytes', 0) }}
+{% endif %}
+
+{# ---------- TLS (reuse common block) ---------- #}
+{# http_client doesn't have a MODE concept; force tcp semantics for the shared TLS partial #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

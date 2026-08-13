@@ -1,0 +1,45 @@
+# EdgeStream Hub APT Repository (modern format)
+
+{# Ensure advanced is always a list #}
+{% set adv = advanced | default([]) %}
+
+{# ---- Defensive getters --------------------------------------------------- #}
+{# We check if the item is a dictionary (dict) before accessing 'label' #}
+{% set url_matches      = adv | selectattr('label', 'defined') | selectattr('label', 'equalto', 'apt.repository.url') | list %}
+{% set release_matches = adv | selectattr('label', 'defined') | selectattr('label', 'equalto', 'apt.repository.release') | list %}
+{% set branch_matches  = adv | selectattr('label', 'defined') | selectattr('label', 'equalto', 'apt.repository.branch') | list %}
+{% set key_matches     = adv | selectattr('label', 'defined') | selectattr('label', 'equalto', 'apt.repository.key') | list %}
+
+{% set apt_url_item     = url_matches[0]     if url_matches|length     > 0 else none %}
+{% set apt_release_item = release_matches[0] if release_matches|length > 0 else none %}
+{% set apt_branch_item  = branch_matches[0]  if branch_matches|length  > 0 else none %}
+{% set apt_key_item     = key_matches[0]     if key_matches|length     > 0 else none %}
+
+{# Helper: pick value -> default_value -> hard default #}
+{% macro pick(item, hard_default) -%}
+  {%- if item is mapping -%}
+    {%- set val = item.value | default('') | string | trim -%}
+    {%- set def = item.default_value | default('') | string | trim -%}
+    {%- if val -%}
+      {{ val }}
+    {%- elif def -%}
+      {{ def }}
+    {%- else -%}
+      {{ hard_default }}
+    {%- endif -%}
+  {%- else -%}
+    {{ hard_default }}
+  {%- endif -%}
+{%- endmacro %}
+
+{# Resolve fields - Pass empty strings as hard defaults to let the macro decide #}
+{% set apt_url     = pick(apt_url_item, 'https://apt.repo.hyperi.io/edgestream/testing') %}
+{% set apt_release = pick(apt_release_item, 'trixie') %}
+{% set apt_branch  = pick(apt_branch_item,  'main') %}
+{% set apt_key     = pick(apt_key_item,     '/etc/apt/keyrings/edgestream.gpg') %}
+
+Types: deb
+URIs: {{ apt_url }}
+Suites: {{ apt_release }}
+Components: {{ apt_branch }}
+Signed-By: {{ apt_key }}

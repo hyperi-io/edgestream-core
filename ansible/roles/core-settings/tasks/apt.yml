@@ -1,0 +1,20 @@
+---
+# APT settings (2.x)
+
+- name: "[core-settings.apt]: Expand apt sources template"
+  template:
+    src: ./templates/etc/apt/sources.list.d/edgestream.sources.j2
+    dest: /etc/apt/sources.list.d/edgestream.sources
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+- name: "[core-settings.apt]: Expand apt proxy template"
+  template:
+    src: ./templates/etc/apt/apt.conf.d/00proxy.j2
+    dest: /etc/apt/apt.conf.d/00proxy
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no

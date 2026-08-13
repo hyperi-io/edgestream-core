@@ -1,0 +1,4 @@
+---
+edgestream_settings_file: >-
+  {{ lookup('env', 'EDGESTREAM_SETTINGS_FILE')
+     | default('/var/lib/edgestream/export/settings.yml', true) }}

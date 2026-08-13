@@ -1,0 +1,8 @@
+---
+# tasks/main.yml for Netflow Settings
+
+- import_tasks: ufw.yml
+  when: (netflow_configuration_enabled | default(edge_task_default_enabled | default(true))) | bool
+
+- import_tasks: flow_collector.yml
+  when: (netflow_configuration_enabled | default(edge_task_default_enabled | default(true))) | bool

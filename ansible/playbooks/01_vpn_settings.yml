@@ -1,0 +1,18 @@
+--- 
+- name: edgestream-hub
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  ignore_errors: true
+  
+  vars:
+    version: "1.0"
+    mode: "configure"
+    
+  vars_files:
+    - /opt/edgestream-core/etc/source_path.yml
+    - "{{ edgestream_settings_file }}"
+    
+  roles:
+    - {role: "certificate-settings", tags: ["certificate-settings"]}
+    - {role: "vpn-settings", tags: ["vpn-settings"]}

@@ -1,0 +1,34 @@
+---
+# SSL certificate generation (4.1.x)
+
+- name: "[network-settings.ssl]: Create nginx ssl certificate directory if it does not exist"
+  ansible.builtin.file:
+    path: "{{ nginx_ssl_directory }}"
+    state: directory
+    mode: '0755'
+
+- name: "[network-settings.ssl]: Generate a self-signed private key"
+  community.crypto.openssl_privatekey:
+    path: "{{ nginx_ssl_private_key }}"
+    size: 4096
+    mode: 0600
+    type: RSA
+    state: present
+
+- name: "[network-settings.ssl]: Create certificate signing request (CSR) for self-signed certificate"
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{ nginx_ssl_private_key }}"
+    common_name: "{{ cert_common_name }}"
+    organization_name: "{{ cert_organization_name }}"
+  register: ssl_csr
+
+- name: "[network-settings.ssl]: Generate a self-signed SSL/TLS certificate (valid for 10 years)"
+  community.crypto.x509_certificate:
+    path: "{{ nginx_ssl_certificate }}"
+    privatekey_path: "{{ nginx_ssl_private_key }}"
+    csr_content: "{{ ssl_csr.csr }}"
+    provider: selfsigned
+    selfsigned_not_after: "+3650d"
+    mode: 0644
+  when:
+    - ssl_csr is defined

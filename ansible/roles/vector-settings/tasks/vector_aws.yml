@@ -1,0 +1,12 @@
+---
+# VECTOR AWS S3 CONFIGURATION
+
+- name: "[vector-settings.vector_aws]: Expand vector aws s3 credentials template"
+  template:
+    src: ./templates/etc/vector/aws_s3_credentials.j2
+    dest: /etc/vector/aws_s3_credentials
+    owner: root
+    group: vector
+    mode: '0640'
+    backup: no
+  register: vector_s3_config_file

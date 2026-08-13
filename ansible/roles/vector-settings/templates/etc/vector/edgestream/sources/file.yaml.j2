@@ -1,0 +1,92 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# File Source
+type: file
+
+{# --- Required Fields --- #}
+{# Vector expects an array for 'include', but your schema provides a CSV string #}
+{% set _inc = S.get('include') %}
+{% if _inc is not none and (_inc|string)|trim|length > 0 %}
+include:
+{{ H.render_list(_inc | string | split(','), '  ') }}
+{% endif %}
+
+read_from: {{ H.get('read_from', 'beginning') }}
+
+{# --- Optional Base Fields --- #}
+{% set _exc = S.get('exclude') %}
+{% if _exc is not none and (_exc|string)|trim|length > 0 %}
+exclude:
+{{ render_list(_exc | string | split(','), '  ') }}
+{% endif %}
+
+{% if S.get('data_dir') is not none %}
+data_dir: "{{ H.get('data_dir', '') }}"
+{% endif %}
+
+{# --- Fingerprinting --- #}
+{% set _fstrat = S.get('fingerprint.strategy', 'checksum') %}
+fingerprint:
+  strategy: {{ _fstrat }}
+{% if _fstrat == 'checksum' %}
+  ignored_header_bytes: {{ H.getint('fingerprint.ignored_header_bytes', 0) }}
+  lines: {{ H.getint('fingerprint.lines', 1) }}
+{% endif %}
+
+{# --- Encodings & Delimiters --- #}
+{% set _charset = S.get('encoding.charset') %}
+{% if _charset is not none and (_charset|string)|trim|length > 0 %}
+encoding:
+  charset: "{{ _charset }}"
+{% endif %}
+
+{% if S.get('line_delimiter') is not none %}
+line_delimiter: "{{ H.get('line_delimiter', '') }}"
+{% endif %}
+
+{# --- Multi-line Configuration --- #}
+{% set _ml_start = S.get('multiline.start_pattern') %}
+{% if _ml_start is not none and (_ml_start|string)|trim|length > 0 %}
+multiline:
+  start_pattern: "{{ _ml_start }}"
+  condition_pattern: "{{ H.get('multiline.condition_pattern', '') }}"
+  mode: {{ H.get('multiline.mode', 'continue_past') }}
+  timeout_ms: {{ H.getint('multiline.timeout_ms', 1000) }}
+{% endif %}
+
+{# --- Operational Constraints --- #}
+glob_minimum_cooldown_ms: {{ H.getint('glob_minimum_cooldown_ms', 1000) }}
+max_line_bytes: {{ H.getint('max_line_bytes', 102400) }}
+max_read_bytes: {{ H.getint('max_read_bytes', 2048) }}
+ignore_checkpoints: {{ H.getbool('ignore_checkpoints', false) }}
+ignore_not_found: {{ H.getbool('ignore_not_found', false) }}
+oldest_first: {{ H.getbool('oldest_first', false) }}
+
+{% if S.get('ignore_older_secs') is not none %}
+ignore_older_secs: {{ H.getint('ignore_older_secs', 0) }}
+{% endif %}
+
+{% if S.get('remove_after_secs') is not none %}
+remove_after_secs: {{ H.getint('remove_after_secs', 0) }}
+{% endif %}
+
+{% if S.get('rotate_wait_secs') is not none %}
+rotate_wait_secs: {{ H.getint('rotate_wait_secs', 0) }}
+{% endif %}
+
+{# --- Metadata Keys --- #}
+{% if S.get('file_key') is not none %}
+file_key: "{{ H.get('file_key', 'file') }}"
+{% endif %}
+{% if S.get('host_key') is not none %}
+host_key: "{{ H.get('host_key', '') }}"
+{% endif %}
+{% if S.get('offset_key') is not none %}
+offset_key: "{{ H.get('offset_key', '') }}"
+{% endif %}
+
+{# --- Metrics --- #}
+internal_metrics:
+  include_file_tag: {{ H.getbool('internal_metrics.include_file_tag', false) }}

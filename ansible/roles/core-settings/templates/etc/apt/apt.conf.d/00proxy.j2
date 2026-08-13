@@ -1,0 +1,12 @@
+{% set adv = advanced | default([]) %}
+{% set proxy = adv | selectattr('label', 'equalto', 'apt.repository.proxy') 
+                   | map(attribute='value') 
+                   | first 
+                   | default('', true) 
+                   | string 
+                   | trim %}
+
+{% if proxy | length > 1 %}
+Acquire::http { Proxy "{{ proxy }}"; }
+Acquire::https { Proxy "{{ proxy }}"; }
+{% endif %}

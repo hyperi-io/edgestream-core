@@ -1,0 +1,116 @@
+---
+# Certificate settings
+
+- name: "[certificate-settings.certificates]: Ensure certificate directories exist (0750, root:vector)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: vector
+    mode: '0750'
+  loop:
+    - "{{ certificatePath }}"
+    - "{{ certificatePath }}/ca"
+    - "{{ certificatePath }}/certs"
+    - "{{ certificatePath }}/private"
+
+- name: "[certificate-settings.certificates]: Build destination map"
+  ansible.builtin.set_fact:
+    cert_dest_map:
+      certificate_authority: "{{ certificatePath }}/ca"
+      certificate: "{{ certificatePath }}/certs"
+      private_key: "{{ certificatePath }}/private"
+
+- name: "[certificate-settings.certificates]: Normalize certificates lists"
+  ansible.builtin.set_fact:
+    _ca_list:  "{{ (certificates.certificate_authority | default([])) | list }}"
+    _crt_list: "{{ (certificates.certificate        | default([])) | list }}"
+    _key_list: "{{ (certificates.private_key        | default([])) | list }}"
+
+- name: "[certificate-settings.certificates]: Merge all certificate items"
+  ansible.builtin.set_fact:
+    _all_certs: "{{ _ca_list + _crt_list + _key_list }}"
+
+- name: "[certificate-settings.certificates]Sanity check types are known"
+  ansible.builtin.assert:
+    that:
+      - item.type in ['certificate_authority', 'certificate', 'private_key']
+    fail_msg: "Unknown certificate type: {{ item.type }} for filename={{ item.filename }}"
+  loop: "{{ _all_certs }}"
+  loop_control:
+    label: "{{ item.type }}:{{ item.filename }}"
+
+# -------------------------------
+# Write PRIVATE KEYS (no_log)
+# -------------------------------
+- name: "[certificate-settings.certificates]: Write private keys from vars (0640 root:vector) — sensitive"
+  ansible.builtin.copy:
+    dest: "{{ cert_dest_map['private_key'] }}/{{ item.filename }}"
+    owner: root
+    group: vector
+    mode: '0640'
+    content: >-
+      {{ (item.data_b64 | default('')) | ternary(item.data_b64 | b64decode, item.data | default('')) }}
+  when:
+    - item.type == 'private_key'
+  loop: "{{ _all_certs }}"
+  loop_control:
+    label: "{{ item.type }}:{{ item.filename }}"
+  no_log: true
+
+# -------------------------------
+# Write CERTS & CAs
+# -------------------------------
+- name: "[certificate-settings.certificates]: Write certificates / CAs from vars (0644 root:root)"
+  ansible.builtin.copy:
+    dest: "{{ cert_dest_map[item.type] }}/{{ item.filename }}"
+    owner: root
+    group: root
+    mode: '0644'
+    content: >-
+      {{ (item.data_b64 | default('')) | ternary(item.data_b64 | b64decode, item.data | default('')) }}
+  when:
+    - item.type in ['certificate', 'certificate_authority']
+  loop: "{{ _all_certs }}"
+  loop_control:
+    label: "{{ item.type }}:{{ item.filename }}"
+
+# -------------------------------
+# Build desired full paths (fixed)
+# -------------------------------
+- name: "[certificate-settings.certificates]: Build list of desired full paths"
+  ansible.builtin.set_fact:
+    desired_full_paths: >-
+      {{
+        _all_certs
+        | map(attribute='type')
+        | map('extract', cert_dest_map)
+        | zip(_all_certs | map(attribute='filename'))
+        | map('join', '/')
+        | list
+      }}
+  changed_when: false
+
+# -------------------------------
+# PURGE unmanaged files
+# -------------------------------
+- name: "[certificate-settings.certificates]: Find existing files under managed cert dirs"
+  ansible.builtin.find:
+    paths:
+      - "{{ certificatePath }}/ca"
+      - "{{ certificatePath }}/certs"
+      - "{{ certificatePath }}/private"
+    file_type: file
+  register: _found_files
+
+- name: "[certificate-settings.certificates]: Remove unmanaged files (present on disk but not in vars)"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  when:
+    - cert_purge_unmanaged | default(false) | bool
+    - desired_full_paths is defined
+    - item.path not in desired_full_paths
+  loop: "{{ _found_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"

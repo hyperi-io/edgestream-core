@@ -1,0 +1,5 @@
+---
+# defaults file for wec
+
+# Base path for certs on the host
+certificatePath: /etc/edgestream/ssl

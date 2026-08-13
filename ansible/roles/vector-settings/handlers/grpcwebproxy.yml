@@ -1,0 +1,4 @@
+- name: "Restart grpcwebproxy"
+  ansible.builtin.systemd:
+    name: grpcwebproxy
+    state: restarted

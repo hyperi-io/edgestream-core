@@ -1,0 +1,84 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{% set S = destination.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+{% set m         = (multiplex_value | default(1, true) | int) %}
+{% set idx       = (i | default(1, true) | int) %}
+{% set dest_name = destination.name | default('dest', true) %}
+
+# file
+type: file
+path: "{{ H.get('path', '/tmp/vector-%Y-%m-%d.log') }}"
+compression: {{ H.get('compression', 'none') }}
+idle_timeout_secs: {{ H.getint('idle_timeout_secs', 30) }}
+
+{% set tz = S.get('timezone') %}
+{% if tz is not none and (tz|string)|trim|length > 0 %}
+timezone: "{{ tz }}"
+{% endif %}
+
+encoding:
+  codec: {{ H.get('encoding.codec', 'json') }}
+  avro:
+{% set avro_schema = S.get('encoding.avro.schema') %}
+{% if avro_schema is not none and (avro_schema|string)|trim|length > 0 %}
+    schema: {{ avro_schema }}
+{% endif %}
+    strip_schema_id_prefix: {{ H.getbool('encoding.avro.strip_schema_id_prefix', true) }}
+  csv:
+    capacity: {{ H.getint('encoding.csv.capacity', 8192) }}
+    delimiter: '{{ H.get('encoding.csv.delimiter', ',') }}'
+    double_quote: {{ H.getbool('encoding.csv.double_quote', true) }}
+    escape: '{{ H.get('encoding.csv.escape', '\"') }}'
+{% set csv_fields = S.get('encoding.csv.fields') %}
+{% if (csv_fields is string and csv_fields|trim|length > 0) or (csv_fields is sequence and not (csv_fields is string) and csv_fields|length > 0) %}
+    fields:
+{{ H.render_list(csv_fields, '      ') }}
+{% endif %}
+    quote: '{{ H.get('encoding.csv.quote', '\"') }}'
+    quote_style: {{ H.get('encoding.csv.quote_style', 'necessary') }}
+{% set csv_except = S.get('encoding.csv.except_fields') %}
+{% if (csv_except is string and csv_except|trim|length > 0) or (csv_except is sequence and not (csv_except is string) and csv_except|length > 0) %}
+    except_fields:
+{{ H.render_list(csv_except, '      ') }}
+{% endif %}
+  json:
+    pretty: {{ H.getbool('encoding.json.pretty', false) }}
+  metric_tag_values: {{ H.get('encoding.metric_tag_values', 'single') | lower }}
+{% set only_fields = S.get('encoding.only_fields') %}
+{% if (only_fields is string and only_fields|trim|length > 0) or (only_fields is sequence and not (only_fields is string) and only_fields|length > 0) %}
+  only_fields:
+{{ H.render_list(only_fields, '  ') }}
+{% endif %}
+{% if S.get('encoding.protobuf.desc_file') is not none or S.get('encoding.protobuf.message_type') is not none %}
+  protobuf:
+{% set desc = S.get('encoding.protobuf.desc_file') %}
+{% if desc is not none and (desc|string)|trim|length > 0 %}
+    desc_file: {{ desc }}
+{% endif %}
+{% set mtype = S.get('encoding.protobuf.message_type') %}
+{% if mtype is not none and (mtype|string)|trim|length > 0 %}
+    message_type: {{ mtype }}
+{% endif %}
+{% endif %}
+{% set tsf = S.get('encoding.timestamp_format') %}
+{% if tsf is not none and (tsf|string)|trim|length > 0 %}
+  timestamp_format: {{ tsf }}
+{% endif %}
+
+healthcheck:
+  enabled: false
+
+inputs:
+{% if m == 1 %}
+{% if destination.routes is defined and destination.routes | length > 0 %}
+  - 08_router.{{ H.sanitize(dest_name) }}
+{% endif %}
+{% if destination.fallback is truthy(convert_bool=True) %}
+  - 08_router._unmatched
+{% endif %}
+{% elif idx < m %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}.r{{ idx }}
+{% else %}
+  - 08_mplex_{{ H.sanitize(dest_name) }}._unmatched
+{% endif %}

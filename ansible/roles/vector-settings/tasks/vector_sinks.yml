@@ -1,0 +1,93 @@
+---
+# VECTOR SINKS
+
+- name: "[vector-settings.vector_sinks]: Ensure sinks directory exists"
+  file:
+    path: "/etc/vector/edgestream/sinks"
+    state: directory
+    owner: root
+    group: vector
+    mode: "0750"
+
+- name: "[vector-settings.vector_sinks]: Determine default multiplex value (safe)"
+  set_fact:
+    multiplex_value: >-
+      {% set v = (advanced | default([]))
+                 | selectattr('label', 'equalto', 'destination.multiplex')
+                 | map(attribute='value')
+                 | first
+                 | default(1) | int %}
+      {{ [5, [1, v] | max] | min }}
+
+- name: "[vector-settings.vector_sinks]: Ensure multiplex_value is an integer"
+  set_fact:
+    multiplex_value: "{{ multiplex_value | int }}"
+
+- name: "[vector-settings.vector_sinks]: Build multiplex_destinations list (safe)"
+  set_fact:
+    multiplex_destinations: >-
+      {{ (destinations | default([]))
+         | selectattr('enabled', 'equalto', true)
+         | list }}
+
+#- debug:
+#    var: multiplex_destinations
+#- debug:
+#    var: multiplex_value
+
+- name: "[vector-settings.vector_sinks]: Generate per-sink multiplexed sink config files"
+  template:
+    src: "etc/vector/edgestream/sinks/{{ destination.type | default('') }}.yaml.j2"
+    dest: "/etc/vector/edgestream/sinks/09_{{ destination.name | default('unnamed') }}{{ '_' ~ (i | int) if (i | int) > 1 else '' }}.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  with_nested:
+    - "{{ multiplex_destinations | default([]) }}"
+    - "{{ range(1, (multiplex_value | default(1) | int) + 1) }}"
+  vars:
+    destination: "{{ item[0] | default({}) }}"
+    i: "{{ item[1] | default(1) }}"
+  when:
+    - (multiplex_destinations | default([])) | length > 0
+    - (multiplex_value | default(1) | int) > 0
+
+# System Sinks
+- name: "[vector-settings.vector_sinks]: Find system sink templates"
+  find:
+    paths: "{{ role_path }}/templates/etc/vector/edgestream/sinks/system"
+    patterns: "*.yaml.j2"
+  register: system_sink_templates
+  when: vector_settings_system_sinks is not defined or vector_settings_system_sinks | bool
+
+- name: "[vector-settings.vector_sinks]: Render system sink templates via include"
+  include_tasks: render_system_templates.yml
+  loop: "{{ system_sink_templates.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  vars:
+    output_path: "/etc/vector/edgestream/sinks/{{ item.path | basename | regex_replace('\\.j2$', '') }}"
+  when:
+    - system_sink_templates is defined
+    - (system_sink_templates.files | default([])) | length > 0
+    - vector_settings_system_sinks is not defined or vector_settings_system_sinks | bool
+
+
+- name: "[vector-settings.vector_sinks]: Calculate enabled sources"
+  set_fact:
+    enabled_sources_count: "{{ sources | default([]) | selectattr('enabled', 'equalto', true) | list | length }}"
+
+- name: "[vector-settings.vector_sinks]: Render 10_sink_blackhole.yaml"
+  template:
+    src: "{{ role_path }}/templates/etc/vector/edgestream/sinks/10_sink_blackhole.yaml.j2"
+    dest: "/etc/vector/edgestream/sinks/10_sink_blackhole.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+  when: enabled_sources_count | int > 0
+  
+- name: "[vector-settings.vector_sinks]: Remove 10_sink_blackhole.yaml if no sources are enabled"
+  file:
+    path: "/etc/vector/edgestream/sinks/10_sink_blackhole.yaml"
+    state: absent
+  when: enabled_sources_count | int == 0

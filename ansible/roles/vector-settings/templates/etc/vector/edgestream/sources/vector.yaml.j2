@@ -1,0 +1,18 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+{# ---------- helpers ---------- #}
+{% set S = source.settings | default({}, true) %}
+{% import 'common/macros.j2' as H with context %}
+
+# Vector
+type: vector
+address: "{{ H.get('address', '127.0.0.1:9000') }}"
+
+{# Optional schema version (string enum "2"); emit only if provided and non-empty #}
+{% set _ver = S.get('version') %}
+{% if _ver is not none and (_ver|string)|trim|length > 0 %}
+version: "{{ _ver }}"
+{% endif %}
+
+{# ---------- TLS (reuse common block; vector is TCP so treat as tcp) ---------- #}
+{% set MODE = MODE | default('tcp') %}
+{% include 'common/blocks/tls.j2' %}

@@ -1,0 +1,74 @@
+---
+# tasks file for flow-collector
+- name: "[netflow-installer.main]: Create flow-collector group"
+  group:
+    name: flow-collector
+    state: present
+        
+- name: "[netflow-installer.main]: Create flow-collector user"
+  ansible.builtin.user:
+    name: flow-collector
+    shell: /usr/sbin/nologin
+    groups: adm, vector
+    append: yes
+    group: flow-collector
+
+- name: "[netflow-installer.main]: Create default flow log directory"
+  file:
+    path: /var/log/flow-collector
+    state: directory
+    owner: flow-collector
+    group: adm
+    mode: '0750'
+
+- name: "[netflow-installer.main]: Wait for dpkg/apt locks to be released"
+  ansible.builtin.shell: |
+    set -eu
+    # wait up to 10 minutes
+    timeout=600
+    start=$(date +%s)
+
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+       || fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+       || fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+      now=$(date +%s)
+      if [ $((now-start)) -ge $timeout ]; then
+        echo "Timed out waiting for apt/dpkg locks"
+        # show who holds it (best-effort)
+        ps -fp "$(lsof -t /var/lib/dpkg/lock-frontend 2>/dev/null | head -n1)" 2>/dev/null || true
+        exit 1
+      fi
+      sleep 3
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when:
+    - mode | default('') not in ['install', 'upgrade']
+    
+- name: "[netflow-installer.main]: Install flow-collector"
+  ansible.builtin.apt:
+    name: flow-collector
+    state: present
+
+- name: "[netflow-installer.main]: Copy flow-collector file to monit.d directory"
+  copy:
+    src: ./files/flow-collector.monitd
+    dest: /etc/monit/conf-available/flow-collector
+    owner: root
+    group: root
+    mode: '0644'
+    backup: no
+
+- name: "[netflow-installer.main]: Create symlink to enable flow-collector monit config"
+  file:
+    src: /etc/monit/conf-available/flow-collector
+    dest: /etc/monit/conf-enabled/flow-collector
+    state: link
+
+- name: "[netflow-installer.main]: Reload monit service"
+  systemd:
+    name: monit.service
+    enabled: yes
+    state: reloaded
+

@@ -1,0 +1,9 @@
+#jinja2: trim_blocks: True, lstrip_blocks: False
+
+# Syslog-ng METRICS
+type: socket
+mode: unix_stream
+path: "/run/vector/syslog_metrics.sock"
+socket_file_mode: 0x770
+decoding:
+  codec: json

@@ -1,0 +1,20 @@
+Source: edgestream-core
+Section: admin
+Priority: extra
+Standards-Version: 4.6.2
+Maintainer: Hyperi Support <edgestream-support@hyperi.io>
+Build-Depends: debhelper-compat (= 13), make, tar
+Homepage: https://github.com/hyperi-io/edgestream-core
+
+Package: edgestream-core
+Architecture: all
+Pre-Depends:
+ dpkg (>= 1.16.1),
+ ${misc:Pre-Depends}
+Depends:
+ ansible, sudo
+ ${misc:Depends}
+Description: EdgeStream Hub Core Templates
+ EdgeStream Hub core configuration templates and Ansible roles.
+ .
+ Licensed under the Functional Source License 1.1 (ALv2 Future License).

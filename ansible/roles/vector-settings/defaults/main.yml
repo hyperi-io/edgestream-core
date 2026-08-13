@@ -1,0 +1,11 @@
+---
+# defaults file
+vector_settings_static: true                  # Enable all static sections (sources, transforms, sinks)
+
+# Optional overrides (more granular control):
+vector_settings_static_sources: true          # Enable static source templates
+vector_settings_static_transforms: true      # Disable static transform templates
+vector_settings_static_sinks: true            # Enable static sink templates
+
+# Base path for certs on the host
+certificatePath: /etc/edgestream/ssl

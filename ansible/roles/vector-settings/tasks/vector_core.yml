@@ -1,0 +1,166 @@
+---
+# tasks/vector-core.yml
+
+- name: "[vector-settings.vector_core]: Gather facts (if not already gathered)"
+  ansible.builtin.setup:
+    filter: ansible_mounts
+
+- name: "[vector-settings.vector_core]: Get size of /data mount"
+  ansible.builtin.set_fact:
+    disk_size_data: "{{ (ansible_mounts | selectattr('mount', 'equalto', '/data') | map(attribute='size_total') | first | default(0, true)) }}"
+  when:
+    - vector_settings_3_1_2 is not defined or vector_settings_3_1_2 | bool
+
+# ---- Unified InfluxDB secrets handling (no legacy) ----
+- name: "[vector-settings.vector_core]: Check unified InfluxDB secrets file exists"
+  ansible.builtin.stat:
+    path: /etc/edgestream/influxdb.secrets
+  register: influx_secrets_stat
+
+- name: "[vector-settings.vector_core]: Fail if unified InfluxDB secrets file is missing"
+  ansible.builtin.fail:
+    msg: >
+      /etc/edgestream/influxdb.secrets not found.
+      Ensure provisioning created it with:
+      INFLUXDB_TOKEN=<token>
+      INFLUXDB_PASSWORD=<password>
+  when: not influx_secrets_stat.stat.exists
+
+- name: "[vector-settings.vector_core]: Read unified InfluxDB secrets"
+  ansible.builtin.slurp:
+    src: /etc/edgestream/influxdb.secrets
+  register: influx_secrets_raw
+  changed_when: false
+
+- name: "[vector-settings.vector_core]: Decode secrets text (normalize CRLF)"
+  ansible.builtin.set_fact:
+    influx_secrets_text: "{{ (influx_secrets_raw.content | b64decode | string) | regex_replace('\\r','') }}"
+
+- name: "[vector-settings.vector_core]: Split + trim lines"
+  ansible.builtin.set_fact:
+    influx_secret_lines: "{{ influx_secrets_text.splitlines() | map('trim') | list }}"
+
+# Init facts to avoid 'undefined' later
+- name: "[vector-settings.vector_core]: Init parsed facts"
+  ansible.builtin.set_fact:
+    influxdb_token: ""
+    influxdb_passwd: ""
+    _matched_token_lines: []
+    _matched_pass_lines: []
+
+# Collect matching lines via startswith (no regex control, no break)
+- name: "[vector-settings.vector_core]: Collect token lines"
+  ansible.builtin.set_fact:
+    _matched_token_lines: "{{ _matched_token_lines + [item] }}"
+  loop: "{{ influx_secret_lines }}"
+  when:
+    - item is string
+    - item != ""
+    - (item.startswith('INFLUXDB_TOKEN=') or item.startswith('export INFLUXDB_TOKEN='))
+
+- name: "[vector-settings.vector_core]: Collect password lines"
+  ansible.builtin.set_fact:
+    _matched_pass_lines: "{{ _matched_pass_lines + [item] }}"
+  loop: "{{ influx_secret_lines }}"
+  when:
+    - item is string
+    - item != ""
+    - (item.startswith('INFLUXDB_PASSWORD=') or item.startswith('export INFLUXDB_PASSWORD='))
+
+# Choose effective lines (prefer last match)
+- name: "[vector-settings.vector_core]: Choose effective lines"
+  ansible.builtin.set_fact:
+    influx_token_line: "{{ (_matched_token_lines | list | reverse | first | default('')) }}"
+    influx_passwd_line: "{{ (_matched_pass_lines | list | reverse | first | default('')) }}"
+
+# Extract values (right of '='); strip quotes, comments, whitespace
+- name: "[vector-settings.vector_core]: Extract values"
+  ansible.builtin.set_fact:
+    influxdb_token: >-
+      {{
+        (
+          (influx_token_line.split('=', 1)[1]) if ('=' in influx_token_line) else ''
+        )
+        | regex_replace('\\s*(?:#.*)?$', '')
+        | regex_replace('^\"(.*)\"$', '\\1')
+        | regex_replace("^'(.*)'$", '\\1')
+        | trim
+      }}
+    influxdb_passwd: >-
+      {{
+        (
+          (influx_passwd_line.split('=', 1)[1]) if ('=' in influx_passwd_line) else ''
+        )
+        | regex_replace('\\s*(?:#.*)?$', '')
+        | regex_replace('^\"(.*)\"$', '\\1')
+        | regex_replace("^'(.*)'$", '\\1')
+        | trim
+      }}
+
+- name: "[vector-settings.vector_core]: Validate parsed InfluxDB token"
+  ansible.builtin.assert:
+    that:
+      - influxdb_token is string
+      - influxdb_token | length > 0
+    fail_msg: "INFLUXDB_TOKEN not found or empty in /etc/edgestream/influxdb.secrets"
+
+# ---- Vector config files ----
+- name: "[vector-settings.vector_core]: Ensure /etc/vector/edgestream exists"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: vector
+    mode: '0750'
+  loop:
+    - /etc/vector/edgestream
+    - /etc/vector/edgestream/sources
+    - /etc/vector/edgestream/sinks
+    - /etc/vector/edgestream/transforms
+
+- name: "[vector-settings.vector_core]: Expand vector defaults file"
+  ansible.builtin.template:
+    src: ./templates/etc/default/vector.j2
+    dest: /etc/default/vector
+    owner: root
+    group: vector
+    mode: '0644'
+    backup: no
+  register: vector_defaults_file
+  when:
+    - vector_settings_3_1_5 is not defined or vector_settings_3_1_5 | bool
+
+- name: "[vector-settings.vector_core]: Expand vector global settings template"
+  ansible.builtin.template:
+    src: ./templates/etc/vector/edgestream/edgestream.yaml.j2
+    dest: /etc/vector/edgestream/edgestream.yaml
+    owner: root
+    group: vector
+    mode: '0640'
+    backup: no
+  register: vector_template
+  vars:
+    influxdb_token: "{{ influxdb_token }}"
+    influxdb_password: "{{ influxdb_passwd }}"
+  when:
+    - vector_settings_3_1_9 is not defined or vector_settings_3_1_9 | bool
+
+- name: "[vector-settings.vector_core]: Expand vector aws s3 credentials template"
+  ansible.builtin.template:
+    src: ./templates/etc/vector/aws_s3_credentials.j2
+    dest: /etc/vector/aws_s3_credentials
+    owner: root
+    group: vector
+    mode: '0640'
+  register: vector_s3_config_file
+  when:
+    - vector_settings_3_1_38 is not defined or vector_settings_3_1_38 | bool
+
+- name: "[vector-settings.vector_core]: Add vector user to o365audit group"
+  ansible.builtin.user:
+    name: vector
+    groups: o365audit
+    append: yes
+  register: group_add_result
+  failed_when: false
+  

@@ -1,0 +1,44 @@
+---
+# Configure tmeplates for sources and destinations
+
+- name: Ensure system template directories exist
+  file:
+    path: "/usr/share/edgestream/templates/{{ item }}"
+    state: directory
+    owner: root
+    group: edgestream
+    mode: '0755'
+  loop:
+    - source
+    - destination
+
+- name: Ensure contrib template directories exist
+  file:
+    path: "/etc/edgestream/templates/{{ item }}/contrib"
+    state: directory
+    owner: root
+    group: edgestream
+    mode: '0755'
+  loop:
+    - source
+    - destination
+
+- name: Deploy all individual source templates
+  copy:
+    src: "{{ item }}"
+    dest: "/usr/share/edgestream/templates/source/{{ item | basename }}"
+    owner: root
+    group: edgestream
+    mode: '0644'
+  with_fileglob:
+    - "files/templates/source/*.json"
+
+- name: Deploy all individual destination templates
+  copy:
+    src: "{{ item }}"
+    dest: "/usr/share/edgestream/templates/destination/{{ item | basename }}"
+    owner: root
+    group: edgestream
+    mode: '0644'
+  with_fileglob:
+    - "files/templates/destination/*.json"

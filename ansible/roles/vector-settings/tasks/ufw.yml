@@ -1,0 +1,52 @@
+---
+# tasks/ufw.yml
+
+- name: "[vector-settings.ufw]: Configure UFW"
+  block:
+    - name: "[vector-settings.ufw]: Get list of UFW application profiles from /etc/ufw/applications.d/edgestream-core"
+      shell: grep -oP 'edgestream-core-[^=\]]+' /etc/ufw/applications.d/edgestream-core
+      register: edgestream_core_profiles
+      failed_when: false
+      changed_when: edgestream_core_profiles.stdout != ""
+
+    - name: "[vector-settings.ufw]: Remove existing UFW application profiles that start with edgestream-core-"
+      ufw:
+        rule: allow
+        name: "{{ item }}"
+        delete: true
+      when:
+        - edgestream_core_profiles.stdout is defined and edgestream_core_profiles.stdout != ""
+      loop: "{{ edgestream_core_profiles.stdout_lines }}"
+
+    - name: "[vector-settings.ufw]: Expand edgestream-core UFW applications.d template"
+      template:
+        src: ./templates/etc/ufw/applications.d/edgestream-core.j2
+        dest: /etc/ufw/applications.d/edgestream-core
+        owner: root
+        group: root
+        mode: '0644'
+        backup: no
+      register: ufw_application_rule
+
+    - name: "[vector-settings.ufw]: Ensure UFW is reloaded after deletion"
+      ufw:
+        state: reloaded
+
+    # Enable the application rules again
+    - name: "[vector-settings.ufw]: Get list of UFW application profiles from /etc/ufw/applications.d/edgestream-core"
+      shell: grep -oP 'edgestream-core-[^=\]]+' /etc/ufw/applications.d/edgestream-core
+      register: edgestream_core_profiles
+      failed_when: false
+      changed_when: edgestream_core_profiles.stdout != ""
+
+    - name: "[vector-settings.ufw]: Create UFW application profiles that start with edgestream-core-"
+      ufw:
+        rule: allow
+        name: "{{ item }}"
+      when:
+        - edgestream_core_profiles.stdout is defined and edgestream_core_profiles.stdout != ""
+      loop: "{{ edgestream_core_profiles.stdout_lines }}"
+
+    - name: "[vector-settings.ufw]: Reload UFW after adding new rules"
+      ufw:
+        state: reloaded

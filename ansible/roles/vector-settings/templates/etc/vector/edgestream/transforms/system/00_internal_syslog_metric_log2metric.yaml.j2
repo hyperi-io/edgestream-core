@@ -1,0 +1,24 @@
+type: log_to_metric
+inputs: [00_internal_syslog_metric_remap]
+metrics:
+  - type: counter
+    field: submitted
+    name: syslog.submitted
+    increment_by_value: true
+    tags:
+      component_id: "{{ '{{ name }}' }}"
+      component_kind: "{{ '{{ origin }}' }}"
+  - type: counter
+    field: disallowed
+    name: syslog.disallowed
+    increment_by_value: true
+    tags:
+      component_id: "{{ '{{ name }}' }}"
+      component_kind: "{{ '{{ origin }}' }}"
+  - type: counter
+    field: lost_events
+    name: syslog.loss
+    increment_by_value: true
+    tags:
+      component_id: "{{ '{{ name }}' }}"
+      component_kind: "{{ '{{ origin }}' }}"

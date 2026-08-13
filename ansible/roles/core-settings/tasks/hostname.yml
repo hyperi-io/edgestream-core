@@ -1,0 +1,14 @@
+---
+# Configure system hostname
+
+- name: "[core-settings.hostname]: Set the system hostname"
+  ansible.builtin.hostname:
+    name: "{{ system.hostname | default('edgestream-hub') }}"
+    use: systemd
+
+- name: "[core-settings.hostname]: Ensure /etc/hosts has correct hostname mapping"
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED BLOCK for system hostname"
+    block: |
+      127.0.0.1       edgestream-hub.local {{ system.hostname | default('edgestream-hub') }}
