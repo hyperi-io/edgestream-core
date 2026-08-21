@@ -9,16 +9,11 @@
     group: vector
     mode: "0750"
 
-# Multiplex value (safe if 'advanced' is undefined/missing)
-- name: "[vector-settings.vector_transforms]: Determine default multiplex value"
+- name: "[vector-settings.vector_sinks]: Determine default multiplex value (safe)"
   set_fact:
     multiplex_value: >-
-      {% set v = (advanced | default([]))
-                   | selectattr('label', 'equalto', 'destination.multiplex')
-                   | map(attribute='value')
-                   | first
-                   | default(1) | int %}
-      {{ [5, [1, v] | max] | min }}
+      {% set raw_v = (advanced | default({}))['destination.multiplex'] | default(1) | int %}
+      {{ [5, [1, raw_v] | max] | min }}
 
 - name: "[vector-settings.vector_transforms]: Ensure multiplex_value is an integer"
   set_fact:

@@ -1,7 +1,3 @@
-log:
-  path: ''
-  debug: {{ settings.debug | default(False) | bool }}
-
 {#--------- logic & safety checks ---------#}
 {% set s = source | default({}) %}
 
@@ -11,10 +7,14 @@ log:
 {% endif %}
 
 {% set settings = s.settings | default({}) %}
-{% set adv = advanced | default([]) %}
+{% set adv = advanced | default({}) %}
 
 {# Clean up the socket path: ensure no trailing slash #}
 {% set base_socket_path = (socketPath | default('/run/o365audit')).rstrip('/') %}
+
+log:
+  path: ''
+  debug: {{ settings.get('debug', False) | bool }}
 
 collect:
   workingDir: /var/cache/o365audit/{{ s.name }}/
@@ -25,11 +25,11 @@ collect:
     Audit.SharePoint: {{ settings.get('audit.sharepoint', '0') | bool }}
     DLP.All: {{ settings.get('dlp.all', '0') | bool }}
   cacheSize: 500000
-  maxThreads: {{ settings.maxthreads | default('40') | int }}
+  maxThreads: {{ settings.get('maxthreads', '40') | int }}
   globalTimeout: 1
   retries: 3
   skipKnownLogs: True
-  hoursToCollect: {{ settings.hourstocollect | default('24') | int }}
+  hoursToCollect: {{ settings.get('hourstocollect', '24') | int }}
   duplicate: 1
 
 output:

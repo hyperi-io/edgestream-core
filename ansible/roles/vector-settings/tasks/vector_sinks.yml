@@ -12,12 +12,8 @@
 - name: "[vector-settings.vector_sinks]: Determine default multiplex value (safe)"
   set_fact:
     multiplex_value: >-
-      {% set v = (advanced | default([]))
-                 | selectattr('label', 'equalto', 'destination.multiplex')
-                 | map(attribute='value')
-                 | first
-                 | default(1) | int %}
-      {{ [5, [1, v] | max] | min }}
+      {% set raw_v = (advanced | default({})).get('destination.multiplex', 1) | int %}
+      {{ [5, [1, raw_v] | max] | min }}
 
 - name: "[vector-settings.vector_sinks]: Ensure multiplex_value is an integer"
   set_fact:
@@ -29,11 +25,6 @@
       {{ (destinations | default([]))
          | selectattr('enabled', 'equalto', true)
          | list }}
-
-#- debug:
-#    var: multiplex_destinations
-#- debug:
-#    var: multiplex_value
 
 - name: "[vector-settings.vector_sinks]: Generate per-sink multiplexed sink config files"
   template:
@@ -72,7 +63,6 @@
     - (system_sink_templates.files | default([])) | length > 0
     - vector_settings_system_sinks is not defined or vector_settings_system_sinks | bool
 
-
 - name: "[vector-settings.vector_sinks]: Calculate enabled sources"
   set_fact:
     enabled_sources_count: "{{ sources | default([]) | selectattr('enabled', 'equalto', true) | list | length }}"
@@ -85,7 +75,7 @@
     group: vector
     mode: "0640"
   when: enabled_sources_count | int > 0
-  
+
 - name: "[vector-settings.vector_sinks]: Remove 10_sink_blackhole.yaml if no sources are enabled"
   file:
     path: "/etc/vector/edgestream/sinks/10_sink_blackhole.yaml"
