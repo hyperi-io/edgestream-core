@@ -56,25 +56,13 @@
   ansible.builtin.set_fact:
     dre_empty: >-
       {{
-        (
-          (advanced | default([]))
-            | selectattr('label','equalto','webui.enabled')
-            | map(attribute='value')
-            | first
-            | default(None, true)
-        ) is none
+        (advanced | default({})).get('webui.enabled') is none
       }}
 
     dre_truthy: >-
       {{
-        (
-          (advanced | default([]))
-            | selectattr('label','equalto','webui.enabled')
-            | map(attribute='value')
-            | first
-            | default('')
-        ) | string | lower
-        in ['1','true','yes','on']
+        ((advanced | default({})).get('webui.enabled', '') | string | lower)
+        in ['1', 'true', 'yes', 'on']
       }}
 
 - name: "[network-settings.nginx]: Permit access to webui"

@@ -1,17 +1,8 @@
-{% set adv = advanced | default([]) %}
+{% set adv = advanced | default({}) %}
 
-{# pull value and default_value, trimming whitespace #}
-{% set lp_value = (
-  adv | selectattr('label','equalto','ssh.listen_port')
-      | map(attribute='value') | first | d('') | string | trim
-) %}
-{% set lp_default = (
-  adv | selectattr('label','equalto','ssh.listen_port')
-      | map(attribute='default_value') | first | d('22') | string | trim
-) %}
-
-{# choose value if non-empty, else default_value, else hard fallback #}
-{% set listen_port = (lp_value if lp_value|length > 0 else (lp_default if lp_default|length > 0 else '22')) %}
+{# choose value if non-empty, else hard fallback to '22' #}
+{% set raw_port = adv.get('ssh.listen_port', '') | string | trim %}
+{% set listen_port = raw_port if raw_port | length > 0 else '22' %}
 
 [OpenSSH]
 title=Secure shell server, an rshd replacement

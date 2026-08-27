@@ -4,21 +4,8 @@
 # ----------------------------- #}
 
 {# ---------- Advanced Settings Resolver ---------- #}
-{% set adv = advanced | default([]) %}
-
-{# Safe lookup macro for advanced settings #}
-{% macro get_adv(items, key, default_val) -%}
-  {%- set match = items | selectattr('label', 'defined') | selectattr('label', 'equalto', key) | list -%}
-  {%- if match | length > 0 and match[0].value | string | trim | length > 0 -%}
-    {{ match[0].value | string | trim }}
-  {%- elif match | length > 0 and match[0].default_value | string | trim | length > 0 -%}
-    {{ match[0].default_value | string | trim }}
-  {%- else -%}
-    {{ default_val }}
-  {%- endif -%}
-{%- endmacro %}
-
-{% set threshold = get_adv(adv, 'webui.chart.threshold', '2G') %}
+{% set adv = advanced | default({}) %}
+{% set threshold = adv.get('webui.chart.threshold', '') | string | trim or '2G' %}
 
 # Managed by Ansible – DO NOT EDIT
 SHELL=/bin/bash

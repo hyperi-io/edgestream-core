@@ -10,7 +10,7 @@
           'transforms':   (transforms   | default([])),
           'sources':      (sources      | default([])),
           'destinations': (destinations | default([])),
-          'advanced':     (advanced     | default([])),
+          'advanced':     (advanced     | default({})),
         }
       }}
 

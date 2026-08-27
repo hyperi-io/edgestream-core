@@ -1,13 +1,13 @@
 # PAM configuration for the Secure Shell service
 
 {# --- safe locals & helpers --- #}
-{% set adv = advanced | default([]) %}
+{% set adv = advanced | default({}) %}
 {# pull flags once, tolerate strings like "true"/"1"/"yes" #}
-{% set pwd_auth_raw = adv | selectattr('label','equalto','ssh.password_authentication') | map(attribute='value') | first | default(False) %}
-{% set ga_raw       = adv | selectattr('label','equalto','ssh.google_auth')            | map(attribute='value') | first | default(False) %}
+{% set pwd_auth_raw = adv.get('ssh.password_authentication', False) %}
+{% set ga_raw       = adv.get('ssh.google_auth', False) %}
 
-{% set pwd_auth = (pwd_auth_raw|string|lower in ['1','true','yes','on']) or (pwd_auth_raw|bool) %}
-{% set google_2fa = (ga_raw|string|lower in ['1','true','yes','on']) or (ga_raw|bool) %}
+{% set pwd_auth = (pwd_auth_raw | string | lower in ['1', 'true', 'yes', 'on']) or (pwd_auth_raw | bool) %}
+{% set google_2fa = (ga_raw | string | lower in ['1', 'true', 'yes', 'on']) or (ga_raw | bool) %}
 
 # Standard Un*x authentication.
 {% if pwd_auth or not google_2fa %}

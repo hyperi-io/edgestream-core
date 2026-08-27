@@ -31,21 +31,8 @@ upstream edgestream-influx {
       keepalive 10;
 }
 
-{# --- Robust Advanced Settings Resolver --- #}
-{% set adv = advanced | default([]) %}
-
-{% macro get_adv(items, key, default_val) -%}
-  {%- set match = items | selectattr('label', 'defined') | selectattr('label', 'equalto', key) | list -%}
-  {%- if match | length > 0 and match[0].value | string | trim | length > 0 -%}
-    {{ match[0].value | string | trim }}
-  {%- elif match | length > 0 and match[0].default_value | string | trim | length > 0 -%}
-    {{ match[0].default_value | string | trim }}
-  {%- else -%}
-    {{ default_val }}
-  {%- endif -%}
-{%- endmacro %}
-
-{% set listen_port = get_adv(adv, 'webui.listen_port', '443') %}
+{# --- Advanced Settings Resolver --- #}
+{% set listen_port = (advanced | default({})).get('webui.listen_port', '443') | string | trim %}
 {% set ssl_crt = nginx_ssl_certificate | default('/etc/edgestream/ssl/nginx-server.crt', true) | string | trim %}
 {% set ssl_key = nginx_ssl_private_key | default('/etc/edgestream/ssl/nginx-server.key', true) | string | trim %}
 
