@@ -11,5 +11,3 @@
 - import_tasks: nginx.yml
 
 - import_tasks: ssh.yml
-
-- import_tasks: envoy.yml
