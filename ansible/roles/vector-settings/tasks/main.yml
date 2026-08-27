@@ -7,7 +7,7 @@
 
 - import_tasks: certificates.yml
 
-- import_tasks: grpcwebproxy.yml
+- import_tasks: envoy.yml
 
 - import_tasks: vector_prep.yml
 

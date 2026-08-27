@@ -1,4 +1,7 @@
 ---
 # handlers file
-
-- import_tasks: grpcwebproxy.yml
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+    
+- import_tasks: envoy.yml

@@ -1,0 +1,16 @@
+[Unit]
+Description=Envoy Proxy for Vector gRPC-Web
+After=network.target vector.service
+Wants=vector.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/envoy --mode validate -c /etc/envoy/envoy.yaml
+ExecStart=/usr/bin/envoy -c /etc/envoy/envoy.yaml --log-level info
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
