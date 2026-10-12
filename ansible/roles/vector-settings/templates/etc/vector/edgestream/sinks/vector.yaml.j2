@@ -27,7 +27,7 @@ buffer:
 {% endif %}
   when_full: {{ H.get('buffer.when_full', 'block') }}
 
-compression: {{ H.getbool('compression', false) }}
+compression: {{ H.get('compression', 'none') }}
 
 healthcheck:
   enabled: false

@@ -184,10 +184,10 @@
       "compression": {
         "label": "Compression",
         "hint": "Whether or not to compress requests.",
-        "type": "bool",
+        "type": "string",
         "mandatory": false,
-        "default": false,
-        "cast": "bool"
+        "default": "none",
+        "cast": "string"
       }
     }
   }
