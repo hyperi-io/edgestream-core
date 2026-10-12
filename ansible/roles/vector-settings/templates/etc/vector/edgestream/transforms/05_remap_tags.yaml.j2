@@ -33,4 +33,6 @@ source: |
   . = map_keys(., recursive: true) -> |key| {
     downcase(key)
   }
+{% elif source is defined and source.type == 'netflow' %}
+  del(.host)
 {% endif %}
