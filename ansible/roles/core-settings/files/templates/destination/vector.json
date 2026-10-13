@@ -183,8 +183,13 @@
       },
       "compression": {
         "label": "Compression",
-        "hint": "Whether or not to compress requests.",
-        "type": "string",
+        "hint": "Compression algorithm for requests.",
+        "type": "enum",
+        "enum": [
+          "gzip",
+          "none",
+          "zstd"
+        ],
         "mandatory": false,
         "default": "none",
         "cast": "string"
