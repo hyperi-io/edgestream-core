@@ -11,6 +11,19 @@
 {% endif %}
 {% endfor %}
 
+{# Gather all explicit routes declared across non-fallback destinations #}
+{% set non_fallback_explicit_routes = [] %}
+{% for d in (destinations | default([])) if d.enabled is truthy(convert_bool=True) %}
+  {% set is_fb = d.fallback is defined and d.fallback is truthy(convert_bool=True) %}
+  {% if not is_fb and d.routes is defined and d.routes | length > 0 %}
+    {% for r in d.routes %}
+      {% if r not in non_fallback_explicit_routes %}
+        {% set _ = non_fallback_explicit_routes.append(r) %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+
 ###############################
 # ROUTER FOR EVENT TYPES
 ###############################
@@ -36,7 +49,15 @@ inputs:
 route:
   no_route: .nosink == "true"
 {% for destination in (destinations | default([])) if destination.enabled is truthy(convert_bool=True) %}
-{% if destination.routes is defined and destination.routes | length > 0 %}
+{% set is_fallback = destination.fallback is defined and destination.fallback is truthy(convert_bool=True) %}
+{% set has_routes = destination.routes is defined and destination.routes | length > 0 %}
+{% if has_routes and not is_fallback %}
   {{ destination.name }}: 'includes([{%- for route in destination.routes -%}"{{ route }}"{{ ", " if not loop.last else "" }}{%- endfor -%}], .@edgestream.data.id)'
+{% elif is_fallback %}
+  {% if non_fallback_explicit_routes | length > 0 %}
+  {{ destination.name }}: '!includes([{%- for route in non_fallback_explicit_routes -%}"{{ route }}"{{ ", " if not loop.last else "" }}{%- endfor -%}], .@edgestream.data.id)'
+  {% else %}
+  {{ destination.name }}: 'true'
+  {% endif %}
 {% endif %}
 {% endfor %}
