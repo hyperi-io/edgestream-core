@@ -1,14 +1,27 @@
-#jinja2: trim_blocks: True, lstrip_blocks: False
+#jinja2: trim_blocks: True, lstrip_blocks: True
 {# Build an expanded source name list that includes OTel splits #}
 {% set expanded_sources = [] %}
 {% for s in (sources | default([])) if s.enabled is truthy(convert_bool=True) %}
-{% if (s.type | default('')) == 'opentelemetry' %}
-{% set _ = expanded_sources.append({'name': s.name ~ '.logs',    'orig': s}) %}
-{% set _ = expanded_sources.append({'name': s.name ~ '.metrics', 'orig': s}) %}
-{% set _ = expanded_sources.append({'name': s.name ~ '.traces',  'orig': s}) %}
-{% else %}
-{% set _ = expanded_sources.append({'name': s.name, 'orig': s}) %}
-{% endif %}
+  {% if (s.type | default('')) == 'opentelemetry' %}
+    {% set _ = expanded_sources.append({'name': s.name ~ '.logs',    'orig': s}) %}
+    {% set _ = expanded_sources.append({'name': s.name ~ '.metrics', 'orig': s}) %}
+    {% set _ = expanded_sources.append({'name': s.name ~ '.traces',  'orig': s}) %}
+  {% else %}
+    {% set _ = expanded_sources.append({'name': s.name, 'orig': s}) %}
+  {% endif %}
+{% endfor %}
+
+{# Gather all routes claimed by OTHER non-fallback destinations #}
+{% set other_claimed_routes = [] %}
+{% for d in (destinations | default([])) if d.enabled is truthy(convert_bool=True) %}
+  {% set is_fb = d.fallback is defined and d.fallback is truthy(convert_bool=True) %}
+  {% if not is_fb and d.routes is defined and d.routes | length > 0 %}
+    {% for r in d.routes %}
+      {% if r not in other_claimed_routes %}
+        {% set _ = other_claimed_routes.append(r) %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
 {% endfor %}
 
 ###############################
@@ -18,25 +31,33 @@ type: route
 inputs:
 {# For each source: if it has filters, use the filter names (06_); otherwise use the source remap (05_) #}
 {% for es in expanded_sources %}
-{% set matched_transforms = [] %}
-{% for transform in (transforms | default([])) if transform.enabled is truthy(convert_bool=True) and transform.type == "filter" %}
-{% if transform.parent is iterable and es.name in transform.parent %}
-{% set _ = matched_transforms.append(transform.name) %}
-{% endif %}
-{% endfor %}
-{% if matched_transforms | length > 0 %}
-{% for tname in matched_transforms %}
+  {% set matched_transforms = [] %}
+  {% for transform in (transforms | default([])) if transform.enabled is truthy(convert_bool=True) and transform.type == "filter" %}
+    {% if transform.parent is iterable and es.name in transform.parent %}
+      {% set _ = matched_transforms.append(transform.name) %}
+    {% endif %}
+  {% endfor %}
+  {% if matched_transforms | length > 0 %}
+    {% for tname in matched_transforms %}
   - 06_{{ tname | replace('.', '_') }}
-{% endfor %}
-{% else %}
+    {% endfor %}
+  {% else %}
   - 05_{{ es.name | replace('.', '_') }}
-{% endif %}
+  {% endif %}
 {% endfor %}
 
 route:
-  no_route: .nosink == "true"
 {% for destination in (destinations | default([])) if destination.enabled is truthy(convert_bool=True) %}
-{% if destination.routes is defined and destination.routes | length > 0 %}
-  {{ destination.name }}: 'includes([{%- for route in destination.routes -%}"{{ route }}"{{ ", " if not loop.last else "" }}{%- endfor -%}], .@edgestream.data.id)'
-{% endif %}
+  {% set is_fallback = destination.fallback is defined and destination.fallback is truthy(convert_bool=True) %}
+  {% set has_routes = destination.routes is defined and destination.routes | length > 0 %}
+  {% if has_routes and not is_fallback %}
+  {{ destination.name }}: 'includes([{% for route in destination.routes %}"{{ route }}"{{ ", " if not loop.last else "" }}{% endfor %}], .@edgestream.data.id)'
+  {% elif is_fallback %}
+    {% if other_claimed_routes | length > 0 %}
+  {{ destination.name }}: '!includes([{% for route in other_claimed_routes %}"{{ route }}"{{ ", " if not loop.last else "" }}{% endfor %}], .@edgestream.data.id)'
+    {% else %}
+  {{ destination.name }}: 'true'
+    {% endif %}
+  {% endif %}
 {% endfor %}
+  no_route: .nosink == "true"
