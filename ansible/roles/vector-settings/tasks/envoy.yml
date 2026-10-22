@@ -1,0 +1,48 @@
+---
+- name: Ensure envoy deb package is installed
+  ansible.builtin.apt:
+    name: envoy
+    state: present
+
+- name: Ensure Envoy configuration directory exists
+  ansible.builtin.file:
+    path: /etc/envoy
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy Envoy configuration
+  ansible.builtin.copy:
+    src: ./files/envoy.yaml
+    dest: /etc/envoy/envoy.yaml
+    owner: root
+    group: root
+    mode: '0644'
+    validate: /usr/bin/envoy --mode validate -c %s
+  notify: Restart envoy
+
+- name: Deploy Envoy systemd service unit
+  ansible.builtin.copy:
+    src: ./files/envoy.service
+    dest: /usr/lib/systemd/system/envoy.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart envoy
+
+- name: Stop and disable legacy grpcwebproxy service
+  ansible.builtin.systemd:
+    name: grpcwebproxy
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Enable and start Envoy service
+  ansible.builtin.systemd:
+    name: envoy
+    state: started
+    enabled: true
+    daemon_reload: true

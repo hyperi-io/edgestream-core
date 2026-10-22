@@ -1,0 +1,4 @@
+- name: "Restart envoy"
+  ansible.builtin.systemd:
+    name: envoy
+    state: restarted
