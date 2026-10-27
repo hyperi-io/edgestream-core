@@ -14,8 +14,8 @@
 ) %}
 
 {% set SRCTYPE = (
-  default(source.type if source is defined and source.type is defined else 'type', true)
-) %}
+  source.type if source is defined and source.type is defined else 'type'
+) | default('type', true) %}
 
 ######################################################
 # EVENT TRANSFORMS
