@@ -342,15 +342,16 @@
         "hint": "The framing method.",
         "type": "enum",
         "enum": [
-          "none",
           "bytes",
           "character_delimited",
+          "chunked_gelf",
           "length_delimited",
           "newline_delimited",
-          "octet_counting"
+          "octet_counting",
+          "varint_length_delimited"
         ],
         "mandatory": false,
-        "default": "none",
+        "default": "bytes",
         "cast": "string"
       },
       "framing.character_delimited.delimiter": {
