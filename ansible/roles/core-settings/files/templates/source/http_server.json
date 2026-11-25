@@ -354,6 +354,53 @@
         "default": "bytes",
         "cast": "string"
       },
+      "framing.chunked_gelf.decompression": {
+        "label": "Framing Chunked GELF Decompression",
+        "hint": "Decompression configuration for GELF messages..",
+        "type": "enum",
+        "enum": [
+          "Auto",
+          "Gzip",
+          "None",
+          "Zlib"
+        ],
+        "mandatory": false,
+        "default": "Auto",
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "chunked_gelf"
+          }
+        ],
+        "cast": "string"
+      },
+      "framing.chunked_gelf.max_length": {
+        "label": "Framing Character Chunked GELF Max Length",
+        "hint": "The maximum length of a single GELF message, in bytes. Messages longer than this length are dropped.",
+        "type": "int",
+        "mandatory": false,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "chunked_gelf"
+          }
+        ],
+        "cast": "int"
+      },
+      "framing.chunked_gelf.pending_messages_limit": {
+        "label": "Framing Character Chunked GELF Pending Message Limit",
+        "hint": "The maximum number of pending incomplete messages.",
+        "type": "int",
+        "mandatory": false,
+        "default": 4096,
+        "requires": [
+          {
+            "key": "framing.method",
+            "value": "chunked_gelf"
+          }
+        ],
+        "cast": "int"
+      },
       "framing.character_delimited.delimiter": {
         "label": "Framing Character Delimited Delimiter",
         "hint": "The character that delimits byte sequences.",
