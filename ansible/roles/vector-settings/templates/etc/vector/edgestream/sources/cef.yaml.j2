@@ -7,61 +7,68 @@
 # CEF
 type: socket
 mode: {{ MODE }}
-
-{# address vs path depending on mode #}
-{% if MODE in ['unix_datagram','unix_stream'] %}
-path: "{{ H.get('path', '/var/run/vector-cef.sock') }}"
-{% if S.get('socket_file_mode') is not none %}
-socket_file_mode: {{ H.getint('socket_file_mode', 438) }} {# 0666 octal -> 438 dec #}
-{% endif %}
-{% else %}
-address: "{{ H.get('address', '0.0.0.0:514') }}"
-{% endif %}
+address: "{{ H.get('address', '0.0.0.0:9000') }}"
 
 {# TCP-only knobs #}
 {% if MODE == 'tcp' %}
-{% if S.get('connection_limit') is not none and (S.get('connection_limit')|string)|length > 0 %}
-connection_limit: {{ H.getint('connection_limit', 0) }}
-{% endif %}
-keepalive:
-  time_secs: {{ H.getint('keepalive.time_secs', 7200) }}
-{% if S.get('max_connection_duration_secs') is not none %}
-max_connection_duration_secs: {{ H.getint('max_connection_duration_secs', 0) }}
-{% endif %}
-{% if S.get('shutdown_timeout_secs') is not none %}
-shutdown_timeout_secs: {{ H.getint('shutdown_timeout_secs', 30) }}
-{% endif %}
-
 {% include 'common/blocks/permit_origin.j2' %}
-
 {% endif %}
 
 {# UDP-only knobs #}
 {% if MODE == 'udp' %}
-{% if S.get('multicast_groups') is not none %}
-multicast_groups:
-{{ H.render_list(S.get('multicast_groups'), '  ') }}
-{% endif %}
-{% if S.get('max_length') is not none %}
+{% if S.get('max_length') is not none and (S.get('max_length')|string)|trim|length > 0 %}
 max_length: {{ H.getint('max_length', 102400) }}
 {% endif %}
 {% endif %}
 
 {# TCP or UDP #}
-{% if MODE in ['tcp','udp'] and S.get('receive_buffer_bytes') is not none %}
-receive_buffer_bytes: {{ H.getint('receive_buffer_bytes', 0) }}
+{% if MODE in ['tcp', 'udp'] and S.get('receive_buffer_bytes') is not none and (S.get('receive_buffer_bytes')|string)|trim|length > 0 %}
+receive_buffer_bytes: {{ H.getint('receive_buffer_bytes', 65536) }}
 {% endif %}
 
-{# optional peer metadata keys #}
-{% if S.get('host_key') is not none %}
-host_key: "{{ H.get('host_key', '') }}"
+{# --- Framing --- #}
+{% set _fmethod = S.get('framing.method') %}
+{% if _fmethod is not none and (_fmethod|string)|trim|length > 0 %}
+framing:
+  method: {{ _fmethod }}
+{% if _fmethod == 'character_delimited' %}
+  character_delimited:
+    delimiter: "{{ H.get('framing.character_delimited.delimiter', '') }}"
+{% if S.get('framing.character_delimited.max_length') is not none and (S.get('framing.character_delimited.max_length')|string)|trim|length > 0 %}
+    max_length: {{ H.getint('framing.character_delimited.max_length', 0) }}
 {% endif %}
-{% if MODE in ['tcp','udp'] and S.get('port_key') is not none %}
-port_key: "{{ H.get('port_key', 'port') }}"
+{% elif _fmethod == 'chunked_gelf' %}
+  chunked_gelf:
+    decompression: {{ H.get('framing.chunked_gelf.decompression', 'Auto') | lower }}
+{% if S.get('framing.chunked_gelf.max_length') is not none and (S.get('framing.chunked_gelf.max_length')|string)|trim|length > 0 %}
+    max_length: {{ H.getint('framing.chunked_gelf.max_length', 0) }}
+{% endif %}
+    pending_messages_limit: {{ H.getint('framing.chunked_gelf.pending_messages_limit', 4096) }}
+    timeout_secs: {{ H.getint('framing.chunked_gelf.timeout_secs', 5) }}
+{% elif _fmethod == 'length_delimited' %}
+  length_delimited:
+    length_field_is_big_endian: {{ H.getbool('framing.length_delimited.length_field_is_big_endian', true) }}
+    length_field_length: {{ H.getint('framing.length_delimited.length_field_length', 4) }}
+{% if S.get('framing.length_delimited.length_field_offset') is not none and (S.get('framing.length_delimited.length_field_offset')|string)|trim|length > 0 %}
+    length_field_offset: {{ H.getint('framing.length_delimited.length_field_offset', 0) }}
+{% endif %}
+{% if S.get('framing.length_delimited.max_frame_length') is not none and (S.get('framing.length_delimited.max_frame_length')|string)|trim|length > 0 %}
+    max_frame_length: {{ H.getint('framing.length_delimited.max_frame_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'newline_delimited' %}
+{% if S.get('framing.newline_delimited.max_length') is not none and (S.get('framing.newline_delimited.max_length')|string)|trim|length > 0 %}
+  newline_delimited:
+    max_length: {{ H.getint('framing.newline_delimited.max_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'octet_counting' %}
+{% if S.get('framing.octet_counting.max_length') is not none and (S.get('framing.octet_counting.max_length')|string)|trim|length > 0 %}
+  octet_counting:
+    max_length: {{ H.getint('framing.octet_counting.max_length', 0) }}
+{% endif %}
+{% endif %}
 {% endif %}
 
 {# --- CEF decoding --- #}
-{# We always parse CEF: use VRL decoder and parse the incoming string payload. #}
 decoding:
   codec: vrl
   vrl:

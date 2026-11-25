@@ -5,18 +5,19 @@
 
 # http_client
 type: http_client
-address: "{{ H.get('address', 'http://127.0.0.1') }}"
-endpoint: "{{ H.get('endpoint', '/') }}"
+endpoint: "{{ H.get('endpoint', 'http://127.0.0.1:9898/logs') }}"
 
 {# ---------- auth (strategy-aware) ---------- #}
-{% set strategy = (H.get('auth.strategy','') | string | lower) %}
-{% if strategy == 'basic' %}
+{% set strategy = (H.get('auth.strategy', 'none') | string | lower) %}
+{% if strategy in ['basic', 'bearer'] %}
 auth:
+  strategy: {{ strategy }}
+{% if strategy == 'basic' %}
   user: "{{ H.get('auth.user', '') }}"
   password: "{{ H.get('auth.password', '') }}"
-{% elif strategy == 'token' %}
-auth:
+{% elif strategy == 'bearer' %}
   token: "{{ H.get('auth.token', '') }}"
+{% endif %}
 {% endif %}
 
 decoding:
@@ -57,16 +58,67 @@ decoding:
 {% endif %}
     timezone: {{ H.get('decoding.vrl.timezone', 'local') }}
 
-method: {{ (H.get('method', 'GET') | upper) }}
+{# ---------- framing ---------- #}
+{% set _fmethod = S.get('framing.method') %}
+{% if _fmethod is not none and (_fmethod|string)|trim|length > 0 %}
+framing:
+  method: {{ _fmethod }}
+{% if _fmethod == 'character_delimited' %}
+  character_delimited:
+    delimiter: "{{ H.get('framing.character_delimited.delimiter', '') }}"
+{% if S.get('framing.character_delimited.max_length') is not none and (S.get('framing.character_delimited.max_length')|string)|trim|length > 0 %}
+    max_length: {{ H.getint('framing.character_delimited.max_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'chunked_gelf' %}
+  chunked_gelf:
+    decompression: {{ H.get('framing.chunked_gelf.decompression', 'Auto') | lower }}
+{% if S.get('framing.chunked_gelf.max_length') is not none and (S.get('framing.chunked_gelf.max_length')|string)|trim|length > 0 %}
+    max_length: {{ H.getint('framing.chunked_gelf.max_length', 0) }}
+{% endif %}
+    pending_messages_limit: {{ H.getint('framing.chunked_gelf.pending_messages_limit', 4096) }}
+    timeout_secs: {{ H.getint('framing.chunked_gelf.timeout_secs', 5) }}
+{% elif _fmethod == 'length_delimited' %}
+  length_delimited:
+    length_field_is_big_endian: {{ H.getbool('framing.length_delimited.length_field_is_big_endian', true) }}
+    length_field_length: {{ H.getint('framing.length_delimited.length_field_length', 4) }}
+{% if S.get('framing.length_delimited.length_field_offset') is not none and (S.get('framing.length_delimited.length_field_offset')|string)|trim|length > 0 %}
+    length_field_offset: {{ H.getint('framing.length_delimited.length_field_offset', 0) }}
+{% endif %}
+{% if S.get('framing.length_delimited.max_frame_length') is not none and (S.get('framing.length_delimited.max_frame_length')|string)|trim|length > 0 %}
+    max_frame_length: {{ H.getint('framing.length_delimited.max_frame_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'newline_delimited' %}
+{% if S.get('framing.newline_delimited.max_length') is not none and (S.get('framing.newline_delimited.max_length')|string)|trim|length > 0 %}
+  newline_delimited:
+    max_length: {{ H.getint('framing.newline_delimited.max_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'octet_counting' %}
+{% if S.get('framing.octet_counting.max_length') is not none and (S.get('framing.octet_counting.max_length')|string)|trim|length > 0 %}
+  octet_counting:
+    max_length: {{ H.getint('framing.octet_counting.max_length', 0) }}
+{% endif %}
+{% endif %}
+{% endif %}
+
+method: {{ (H.get('method', 'get') | upper) }}
+
+{% set _query = S.get('query') %}
+{% if _query is not none and (_query|string)|trim|length > 0 %}
+query: "{{ H.get('query', '') }}"
+{% endif %}
 
 proxy:
   enabled: {{ H.getbool('proxy.enabled', false) }}
 {% set _px_http = S.get('proxy.http') %}
-{% if _px_http is not none and (_px_http|string)|trim|length > 0 %}  http: "{{ H.get('proxy.http', '') }}"{% endif %}
+{% if _px_http is not none and (_px_http|string)|trim|length > 0 %}
+  http: "{{ H.get('proxy.http', '') }}"
+{% endif %}
 {% set _px_https = S.get('proxy.https') %}
-{% if _px_https is not none and (_px_https|string)|trim|length > 0 %}  https: "{{ H.get('proxy.https', '') }}"{% endif %}
+{% if _px_https is not none and (_px_https|string)|trim|length > 0 %}
+  https: "{{ H.get('proxy.https', '') }}"
+{% endif %}
 {% set _no_proxy = S.get('proxy.no_proxy') %}
-{% if _no_proxy is not none %}
+{% if (_no_proxy is string and _no_proxy|trim|length > 0) or (_no_proxy is sequence and not (_no_proxy is string) and _no_proxy|length > 0) %}
   no_proxy:
 {{ H.render_list(_no_proxy, '    ') }}
 {% endif %}
@@ -75,6 +127,5 @@ scrape_interval_secs: {{ H.getint('scrape_interval_secs', 15) }}
 scrape_timeout_secs: {{ H.getint('scrape_timeout_secs', 5) }}
 
 {# ---------- TLS (reuse common block) ---------- #}
-{# http_client doesn't have a MODE concept; force tcp semantics for the shared TLS partial #}
 {% set MODE = MODE | default('tcp') %}
 {% include 'common/blocks/tls.j2' %}

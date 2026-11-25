@@ -5,15 +5,15 @@
 
 # http_server
 type: http_server
-address: "{{ H.get('address', '0.0.0.0:8080') }}"
+address: "{{ H.get('address', '0.0.0.0:9000') }}"
 
 {# ---------- auth ---------- #}
-{% set _user = S.get('auth.username') %}
+{% set _user = S.get('auth.user') %}
 {% set _pass = S.get('auth.password') %}
 {% if (_user is not none and (_user|string)|trim|length > 0)
    and (_pass is not none and (_pass|string)|trim|length > 0) %}
 auth:
-  username: "{{ H.get('auth.username', '') }}"
+  username: "{{ H.get('auth.user', '') }}"
   password: "{{ H.get('auth.password', '') }}"
 {% endif %}
 
@@ -23,7 +23,7 @@ path_key: "{{ H.get('path_key', 'path') }}"
 
 {# ---------- query parameters (CSV or list) ---------- #}
 {% set _qp = S.get('query_parameters') %}
-{% if _qp is not none and ( (_qp is string and _qp|trim|length > 0) or (_qp is sequence and _qp|length > 0) ) %}
+{% if _qp is not none and ((_qp is string and _qp|trim|length > 0) or (_qp is sequence and not (_qp is string) and _qp|length > 0)) %}
 query_parameters:
 {{ H.render_list(_qp, '  ') }}
 {% endif %}
@@ -68,6 +68,48 @@ decoding:
 {{ (_vrl_src | string) | indent(6) }}
 {% endif %}
     timezone: {{ H.get('decoding.vrl.timezone', 'local') }}
+
+{# ---------- framing ---------- #}
+{% set _fmethod = S.get('framing.method') %}
+{% if _fmethod is not none and (_fmethod|string)|trim|length > 0 %}
+framing:
+  method: {{ _fmethod }}
+{% if _fmethod == 'character_delimited' %}
+  character_delimited:
+    delimiter: "{{ H.get('framing.character_delimited.delimiter', '') }}"
+{% if S.get('framing.character_delimited.max_length') is not none and (S.get('framing.character_delimited.max_length')|string)|trim|length > 0 %}
+    max_length: {{ H.getint('framing.character_delimited.max_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'chunked_gelf' %}
+  chunked_gelf:
+    decompression: {{ H.get('framing.chunked_gelf.decompression', 'Auto') | lower }}
+{% if S.get('framing.chunked_gelf.max_length') is not none and (S.get('framing.chunked_gelf.max_length')|string)|trim|length > 0 %}
+    max_length: {{ H.getint('framing.chunked_gelf.max_length', 0) }}
+{% endif %}
+    pending_messages_limit: {{ H.getint('framing.chunked_gelf.pending_messages_limit', 4096) }}
+    timeout_secs: {{ H.getint('framing.chunked_gelf.timeout_secs', 5) }}
+{% elif _fmethod == 'length_delimited' %}
+  length_delimited:
+    length_field_is_big_endian: {{ H.getbool('framing.length_delimited.length_field_is_big_endian', true) }}
+    length_field_length: {{ H.getint('framing.length_delimited.length_field_length', 4) }}
+{% if S.get('framing.length_delimited.length_field_offset') is not none and (S.get('framing.length_delimited.length_field_offset')|string)|trim|length > 0 %}
+    length_field_offset: {{ H.getint('framing.length_delimited.length_field_offset', 0) }}
+{% endif %}
+{% if S.get('framing.length_delimited.max_frame_length') is not none and (S.get('framing.length_delimited.max_frame_length')|string)|trim|length > 0 %}
+    max_frame_length: {{ H.getint('framing.length_delimited.max_frame_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'newline_delimited' %}
+{% if S.get('framing.newline_delimited.max_length') is not none and (S.get('framing.newline_delimited.max_length')|string)|trim|length > 0 %}
+  newline_delimited:
+    max_length: {{ H.getint('framing.newline_delimited.max_length', 0) }}
+{% endif %}
+{% elif _fmethod == 'octet_counting' %}
+{% if S.get('framing.octet_counting.max_length') is not none and (S.get('framing.octet_counting.max_length')|string)|trim|length > 0 %}
+  octet_counting:
+    max_length: {{ H.getint('framing.octet_counting.max_length', 0) }}
+{% endif %}
+{% endif %}
+{% endif %}
 
 {# ---------- TLS (reuse common block; http_server is TCP so force MODE='tcp') ---------- #}
 {% set MODE = MODE | default('tcp') %}

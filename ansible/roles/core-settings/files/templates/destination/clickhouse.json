@@ -1,6 +1,6 @@
 {
   "type": "clickhouse",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "label": "Clickhouse",
   "settings": {
     "base": {
@@ -18,6 +18,118 @@
         "type": "string",
         "mandatory": true,
         "default": "",
+        "cast": "string"
+      },
+      "auth.strategy": {
+        "label": "Auth Strategy",
+        "hint": "The authentication strategy to use.",
+        "type": "enum",
+        "enum": [
+          "aws",
+          "basic",
+          "bearer",
+          "custom"
+        ],
+        "mandatory": true,
+        "default": "basic",
+        "cast": "string"
+      },
+      "auth.auth.access_key_id": {
+        "label": "Access Key ID",
+        "hint": "The AWS access key ID.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.auth.secret_access_key": {
+        "label": "Secret Access Key",
+        "hint": "The AWS secret access key.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.service": {
+        "label": "AWS Service",
+        "hint": "The AWS service name to use for signing.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.user": {
+        "label": "Username",
+        "hint": "The basic authentication username.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "basic"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.password": {
+        "label": "Password",
+        "hint": "The basic authentication password.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "basic"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.token": {
+        "label": "Token",
+        "hint": "The bearer authentication token.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "bearer"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.value": {
+        "label": "Value",
+        "hint": "Custom string value of the Authorization header.",
+        "type": "string",
+        "mandatory": true,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "custom"
+          }
+        ],
         "cast": "string"
       }
     },
@@ -112,24 +224,6 @@
         "default": false,
         "cast": "bool"
       },
-      "acl": {
-        "label": "ACL",
-        "hint": "Canned ACL to apply to the created objects.",
-        "type": "enum",
-        "enum": [
-          "authenticated-read",
-          "aws-exec-read",
-          "bucket-owner-full-control",
-          "bucket-owner-read",
-          "log-delivery-write",
-          "private",
-          "public-read",
-          "public-read-write"
-        ],
-        "mandatory": false,
-        "default": "private",
-        "cast": "string"
-      },
       "auth.assume_role": {
         "label": "Assume Role",
         "hint": "The ARN of an IAM role to assume.",
@@ -138,36 +232,88 @@
         "default": "",
         "cast": "string"
       },
-      "auth.access_key_id": {
-        "label": "Access Key ID",
-        "hint": "The AWS access key ID.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
-      },
-      "auth.secret_access_key": {
+      "auth.auth.external.id": {
         "label": "Secret Access Key",
         "hint": "The AWS secret access key.",
         "type": "string",
         "mandatory": false,
         "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
         "cast": "string"
       },
-      "auth.session_token": {
-        "label": "Session Token",
-        "hint": "The AWS session token. Used for AWS authentication when communicating with AWS services.",
-        "type": "string",
+      "auth.auth.imds.connect_timeout_seconds": {
+        "label": "IMDS Connect Timeout Secconds",
+        "hint": "Connect timeout for IMDS.",
+        "type": "int",
         "mandatory": false,
-        "default": "",
-        "cast": "string"
+        "default": 1,
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "int"
       },
-      "auth.region": {
+      "auth.auth.imds.max_attempts": {
+        "label": "IMDS Max Attempts",
+        "hint": "Number of IMDS retries for fetching tokens and metadata.",
+        "type": "int",
+        "mandatory": false,
+        "default": 4,
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "int"
+      },
+      "auth.auth.region": {
         "label": "Auth Region",
         "hint": "The AWS region.",
         "type": "string",
         "mandatory": false,
         "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.auth.session_name": {
+        "label": "Session Name",
+        "hint": "The optional RoleSessionName is a unique session identifier for your assumed role.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
+        "cast": "string"
+      },
+      "auth.auth.session_token": {
+        "label": "Session Token",
+        "hint": "The AWS session token. Used for AWS authentication when communicating with AWS services.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "requires": [
+          {
+            "key": "auth.strategy",
+            "value": "aws"
+          }
+        ],
         "cast": "string"
       },
       "batch.max_bytes": {
@@ -260,6 +406,30 @@
         "mandatory": false,
         "default": "gzip",
         "cast": "string"
+      },
+      "dangerously_allow_unconfined_template_resolution": {
+        "label": "Dangerously Allow Unconfined Template Resolution",
+        "hint": "Disable all template confinement checks for this sink.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
+      },
+      "database": {
+        "label": "Database",
+        "hint": "The database that contains the table that data is inserted into.",
+        "type": "string",
+        "mandatory": false,
+        "default": "",
+        "cast": "string"
+      },
+      "date_time_best_effort": {
+        "label": "Data Time Best Effort",
+        "hint": "Sets date_time_input_format to best_effort, allowing ClickHouse to properly parse RFC3339/ISO 8601.",
+        "type": "bool",
+        "mandatory": false,
+        "default": false,
+        "cast": "bool"
       },
       "encoding.avro.schema": {
         "label": "Encoding Avro Schema",
@@ -489,178 +659,28 @@
         "default": "rfc3339",
         "cast": "String"
       },
-      "endpoint": {
-        "label": "Endpoint",
-        "hint": "Custom endpoint for use with AWS-compatible services.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
-      },
-      "filename_append_uuid": {
-        "label": "Filename Append UUID",
-        "hint": "Whether or not to append a UUID v4 token to the end of the object key.",
-        "type": "bool",
-        "mandatory": false,
-        "default": true,
-        "cast": "bool"
-      },
-      "filename_extension": {
-        "label": "Filename Extension",
-        "hint": "The filename extension to use in the object key. This overrides setting the extension based on the configured compression.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
-      },
-      "filename_time_format": {
-        "label": "Filename Time Format",
-        "hint": "The timestamp format for the time component of the object key.",
-        "type": "string",
-        "mandatory": false,
-        "default": "%s",
-        "cast": "string"
-      },
-      "framing.method": {
-        "label": "Framing Method",
-        "hint": "The framing method.",
+    
+      "format": {
+        "label": "Format",
+        "hint": "The format to parse input data.",
         "type": "enum",
         "enum": [
-          "none",
-          "bytes",
-          "character_delimited",
-          "length_delimited",
-          "newline_delimited"
+          "arrow_stream",
+          "json_as_object",
+          "json_as_string",
+          "json_each_row"
         ],
         "mandatory": false,
-        "default": "none",
-        "cast": "string"
+        "default": "json_each_row",
+        "cast": "String"
       },
-      "framing.character_delimited.delimiter": {
-        "label": "Framing Character Delimited Delimiter",
-        "hint": "The character that delimits byte sequences.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "character_delimited"
-          }
-        ],
-        "cast": "string"
-      },
-      "framing.character_delimited.max_length": {
-        "label": "Framing Character Delimited Max Length",
-        "hint": "The maximum length of the byte buffer. This length does not include the trailing delimiter.",
-        "type": "int",
-        "mandatory": false,
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "character_delimited"
-          }
-        ],
-        "cast": "int"
-      },
-      "framing.length_delimited.length_field_is_big_endian": {
-        "label": "Framing Length Delimited Length Field is Big Endian",
-        "hint": "Length field byte order (little or big endian).",
+      "insert_random_shard": {
+        "label": "Insert Random Shard",
+        "hint": "Sets insert_distributed_one_random_shard, allowing ClickHouse to insert data into a random shard when using Distributed Table Engine.",
         "type": "bool",
         "mandatory": false,
-        "default": true,
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "length_delimited"
-          }
-        ],
+        "default": false,
         "cast": "bool"
-      },
-      "framing.length_delimited.length_field_length": {
-        "label": "Framing Length Delimited Length Field Length",
-        "hint": "Number of bytes representing the field length.",
-        "type": "int",
-        "mandatory": false,
-        "default": 4,
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "length_delimited"
-          }
-        ],
-        "cast": "int"
-      },
-      "framing.length_delimited.length_field_offset": {
-        "label": "Framing Length Delimited Length Field Offset",
-        "hint": "Number of bytes in the header before the length field.",
-        "type": "int",
-        "mandatory": false,
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "length_delimited"
-          }
-        ],
-        "cast": "int"
-      },
-      "framing.length_delimited.max_frame_length": {
-        "label": "Framing Length Delimited Frame Length",
-        "hint": "Maximum frame length.",
-        "type": "int",
-        "mandatory": false,
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "length_delimited"
-          }
-        ],
-        "cast": "int"
-      },
-      "framing.newline_delimited.max_length": {
-        "label": "Framing Newline Delimited Max Length",
-        "hint": "The maximum length of the byte buffer.",
-        "type": "int",
-        "mandatory": false,
-        "requires": [
-          {
-            "key": "framing.method",
-            "value": "newline_delimited"
-          }
-        ],
-        "cast": "int"
-      },
-      "grant_full_control": {
-        "label": "Grant Full Control",
-        "hint": "Grants READ, READ_ACP, and WRITE_ACP permissions on the created objects to the named grantee.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
-      },
-      "grant_read": {
-        "label": "Grant Read",
-        "hint": "Grants READ permissions on the created objects to the named grantee.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
-      },
-      "grant_read_acp": {
-        "label": "Grant Read ACP",
-        "hint": "Grants READ_ACP permissions on the created objects to the named grantee.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
-      },
-      "grant_write_acp": {
-        "label": "Grant Write ACP",
-        "hint": "Grants WRITE_ACP permissions on the created objects to the named grantee.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "string"
       },
       "proxy.enabled": {
         "label": "Proxy Enabled",
@@ -694,57 +714,13 @@
         "mandatory": false,
         "cast": "string"
       },
-      "server_side_encryption": {
-        "label": "Server Side Encryption",
-        "hint": "AWS S3 Server-Side Encryption algorithms.",
-        "type": "enum",
-        "enum": [
-          "none",
-          "AES256",
-          "aws:kms"
-        ],
+      "skip_unknown_fields": {
+        "label": "Skip Unknown Fields",
+        "hint": "Sets input_format_skip_unknown_fields, allowing ClickHouse to discard fields not present in the table schema.",
+        "type": "bool",
         "mandatory": false,
-        "default": "none",
-        "cast": "String"
-      },
-      "ssekms_key_id": {
-        "label": "SSEKMS Key ID",
-        "hint": "Specifies the ID of the AWS Key Management Service (AWS KMS) symmetrical customer managed customer master key (CMK) that is used for the created objects.",
-        "type": "string",
-        "mandatory": false,
-        "requires": [
-          {
-            "key": "server_side_encryption",
-            "value": "aws:kms"
-          }
-        ],
-        "cast": "string"
-      },
-      "storage_class": {
-        "label": "Storage Class",
-        "hint": "The storage class for the created objects.",
-        "type": "enum",
-        "enum": [
-          "Standard",
-          "Deep_Archive",
-          "Express_Onezone",
-          "Glacier",
-          "Intelligent_Tiering",
-          "Onezone_IA",
-          "Reduced_Redundancy",
-          "Standard_IA"
-        ],
-        "mandatory": false,
-        "default": "Standard",
-        "cast": "String"
-      },
-      "timezone": {
-        "label": "Timezone",
-        "hint": "Timezone to use for any date specifiers in template strings. This can refer to any valid timezone as defined in the TZ database, or local which refers to the system local timezone.",
-        "type": "string",
-        "mandatory": false,
-        "default": "",
-        "cast": "String"
+        "default": false,
+        "cast": "bool"
       }
     }
   }
